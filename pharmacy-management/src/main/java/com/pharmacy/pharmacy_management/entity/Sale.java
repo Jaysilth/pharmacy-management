@@ -1,19 +1,17 @@
 package com.pharmacy.pharmacy_management.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
+import com.pharmacy.pharmacy_management.entity.Medicine;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sales")
-@Data
+@Getter
+@Setter
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
 public class Sale {
 
@@ -36,6 +34,9 @@ public class Sale {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    public Sale() {
+    }
 
     @PrePersist
     protected void onCreate() {

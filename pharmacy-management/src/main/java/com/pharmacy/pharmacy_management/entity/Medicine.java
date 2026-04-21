@@ -8,10 +8,10 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "medicines")
+@Data
 @Getter
 @Setter
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
 public class Medicine {
 
@@ -45,6 +45,9 @@ public class Medicine {
 
     @Column(name = "updated_at")
     private LocalDate updatedAt;
+
+    public Medicine() {
+    }
 
     @PrePersist
     protected void onCreate() {
