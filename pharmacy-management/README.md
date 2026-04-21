@@ -24,8 +24,8 @@ Ensure PostgreSQL is running with these credentials:
 - Host: localhost
 - Port: 8081
 - Database: pharmacy-management
-- Username: postgres
-- Password: jovaji143
+- Username: *******
+- Password: ********
 
 ### Backend
 ```bash
