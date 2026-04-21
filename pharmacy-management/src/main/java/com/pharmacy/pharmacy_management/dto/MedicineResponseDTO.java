@@ -1,0 +1,29 @@
+package com.pharmacy.pharmacy_management.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class MedicineResponseDTO {
+
+    private Long id;
+    private String name;
+    private Integer quantity;
+    private BigDecimal price;
+    private LocalDate expiryDate;
+    private Integer lowStockThreshold;
+    private String description;
+    private String manufacturer;
+    private LocalDate createdAt;
+    private LocalDate updatedAt;
+    private Boolean isExpired;
+    private Boolean isLowStock;
+}
