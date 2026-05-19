@@ -4,7 +4,7 @@ spring.application.name=pharmacy-management
 # PostgreSQL Database Configuration
 spring.datasource.url=jdbc:postgresql://localhost:8081/pharmacy-management
 spring.datasource.username=postgres
-spring.datasource.password=jovaji143
+spring.datasource.password=*******
 
 # JPA/Hibernate Configuration
 spring.jpa.hibernate.ddl-auto=update
