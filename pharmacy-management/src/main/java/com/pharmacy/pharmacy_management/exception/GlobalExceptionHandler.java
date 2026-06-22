@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException; // Thrown w
 // Spring exception handling
 import org.springframework.web.bind.annotation.ExceptionHandler; // Handles specific exceptions
 import org.springframework.web.bind.annotation.RestControllerAdvice; // Applies to all controllers
+import org.springframework.security.authentication.BadCredentialsException;
 
 // Java utilities
 import java.util.HashMap; // For building error map
@@ -159,5 +160,17 @@ public class GlobalExceptionHandler {
         // Note: We don't expose the actual exception message to avoid leaking internals
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An unexpected error occurred: " + ex.getMessage()));
+    }
+
+    /**
+     * Handle BadCredentialsException thrown by AuthenticationManager when
+     * the provided username/password are invalid.
+     *
+     * Returns 401 Unauthorized with a clear, consistent message.
+     */
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("Invalid credentials"));
     }
 }

@@ -109,6 +109,20 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
     List<Medicine> findLowStockMedicines();
 
     /**
+     * Find all medicines that are expiring soon.
+     * 
+     * This query returns medicines whose expiry date is between today
+     * and the configured deadline (inclusive). It does not return already
+     * expired medicines.
+     * 
+     * @param today The current date
+     * @param deadline The latest expiry date to include
+     * @return List of medicines expiring soon
+     */
+    @Query("SELECT m FROM Medicine m WHERE m.expiryDate BETWEEN :today AND :deadline ORDER BY m.expiryDate ASC")
+    List<Medicine> findExpiringSoonMedicines(LocalDate today, LocalDate deadline);
+
+    /**
      * Check if a medicine with the given name already exists.
      * 
      * This is useful for validation before creating a new medicine

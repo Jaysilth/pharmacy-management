@@ -38,17 +38,27 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
-        UserDetails superAdmin = User.withUsername("superadmin")
-                .password(passwordEncoder.encode("SuperAdmin123!"))
+        String superAdminUsername = getEnvOrDefault("PHARMACY_SUPERADMIN_USERNAME", "superadmin");
+        String superAdminPassword = getEnvOrDefault("PHARMACY_SUPERADMIN_PASSWORD", "SuperAdmin123!");
+        String adminUsername = getEnvOrDefault("PHARMACY_ADMIN_USERNAME", "admin");
+        String adminPassword = getEnvOrDefault("PHARMACY_ADMIN_PASSWORD", "Admin123!");
+
+        UserDetails superAdmin = User.withUsername(superAdminUsername)
+                .password(passwordEncoder.encode(superAdminPassword))
                 .roles("SUPER_ADMIN")
                 .build();
 
-        UserDetails admin = User.withUsername("admin")
-                .password(passwordEncoder.encode("Admin123!"))
+        UserDetails admin = User.withUsername(adminUsername)
+                .password(passwordEncoder.encode(adminPassword))
                 .roles("ADMIN")
                 .build();
 
         return new InMemoryUserDetailsManager(superAdmin, admin);
+    }
+
+    private static String getEnvOrDefault(String key, String defaultValue) {
+        String value = System.getenv(key);
+        return (value == null || value.isBlank()) ? defaultValue : value;
     }
 
     @Bean
