@@ -203,6 +203,28 @@ public class MedicineController {
     }
 
     /**
+     * Get all medicines expiring soon.
+     * 
+     * HTTP Method: GET
+     * URL: /api/medicines/expiring-soon
+     * 
+     * Returns medicines that are approaching their expiry date.
+     * Useful for inventory management and preventing sale of expiring products.
+     * 
+     * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
+     *         - 200 OK: Returns list of expiring soon medicines (could be empty)
+     */
+    @GetMapping("/expiring-soon") // Maps to /api/medicines/expiring-soon
+    @Operation(summary = "Get expiring soon medicines", description = "Retrieve all medicines expiring soon")
+    public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getExpiringSoonMedicines() {
+        // Call service to find expiring soon medicines
+        List<MedicineResponseDTO> medicines = medicineService.getExpiringSoonMedicines();
+        
+        // Return 200 OK with the list
+        return ResponseEntity.ok(ApiResponse.success(medicines));
+    }
+
+    /**
      * Search medicines by name.
      * 
      * HTTP Method: GET

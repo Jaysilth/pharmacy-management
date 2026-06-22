@@ -210,6 +210,22 @@ spring.datasource.username=postgres
 spring.datasource.password=your_password
 ```
 
+### Default Login Credentials
+
+This backend uses in-memory login accounts by default. You can override them with environment variables.
+
+Default accounts:
+
+- `superadmin` / `SuperAdmin123!`
+- `admin` / `Admin123!`
+
+Optional environment overrides:
+
+- `PHARMACY_SUPERADMIN_USERNAME`
+- `PHARMACY_SUPERADMIN_PASSWORD`
+- `PHARMACY_ADMIN_USERNAME`
+- `PHARMACY_ADMIN_PASSWORD`
+
 ### Running the Application
 
 Using Maven Wrapper:

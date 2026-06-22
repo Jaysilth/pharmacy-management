@@ -106,6 +106,7 @@ public class CorsConfig implements WebMvcConfigurer {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Set allowed origins (same as in addCorsMappings)
+        // IMPORTANT: Cannot use "*" with allowCredentials(true) - must specify explicit origins
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
                 "http://localhost:4200",
@@ -113,8 +114,7 @@ public class CorsConfig implements WebMvcConfigurer {
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:4200",
                 "http://localhost:5173",
-                "http://127.0.0.1:8081",
-                "*" // Allow all origins for Swagger UI access
+                "http://127.0.0.1:8081"
         ));
         
         // Set allowed HTTP methods

@@ -24,8 +24,14 @@ import org.springframework.stereotype.Service; // Marks as Spring service compon
 import org.springframework.transaction.annotation.Transactional; // Manages database transactions
 
 // Java utilities
+import com.pharmacy.pharmacy_management.dto.SalesByDayDTO;
 import java.math.BigDecimal; // For precise financial calculations
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.LinkedHashMap;
 import java.util.List; // For collections of sales
+import java.util.Map;
 import java.util.stream.Collectors; // For stream operations
 
 /**
@@ -181,6 +187,74 @@ public class SaleService {
                 .stream() // Convert to stream for processing
                 .map(this::mapToResponseDTO) // Convert each Sale to SaleResponseDTO
                 .collect(Collectors.toList()); // Collect back to List
+    }
+
+    /**
+     * Get the number of sales that happened today.
+     *
+     * @return total number of sales for the current day
+     */
+    @Transactional(readOnly = true)
+    public int getTotalSalesToday() {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
+        return (int) saleRepository.countByCreatedAtBetween(startOfDay, endOfDay);
+    }
+
+    /**
+     * Get total revenue for today.
+     *
+     * @return total revenue generated today
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal getTotalRevenueToday() {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
+        BigDecimal revenue = saleRepository.getTotalRevenueByDateRange(startOfDay, endOfDay);
+        return revenue != null ? revenue : BigDecimal.ZERO;
+    }
+
+    /**
+     * Get revenue totals grouped by day for the last N days.
+     *
+     * @param days number of days to include, including today
+     * @return list of revenue totals ordered by date ascending
+     */
+    @Transactional(readOnly = true)
+    public List<SalesByDayDTO> getSalesByDay(int days) {
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(days - 1);
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+
+        Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
+        for (int i = 0; i < days; i++) {
+            totals.put(startDate.plusDays(i), BigDecimal.ZERO);
+        }
+
+        saleRepository.findSalesByDateRange(startDateTime, endDateTime).forEach(sale -> {
+            LocalDate saleDate = sale.getCreatedAt().toLocalDate();
+            totals.compute(saleDate, (key, existing) -> existing == null ? sale.getTotalPrice() : existing.add(sale.getTotalPrice()));
+        });
+
+        return totals.entrySet().stream()
+                .map(entry -> SalesByDayDTO.builder()
+                        .date(entry.getKey().toString())
+                        .totalRevenue(entry.getValue())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the most recent sales transactions.
+     *
+     * @return latest five sales sorted by date descending
+     */
+    @Transactional(readOnly = true)
+    public List<SaleResponseDTO> getRecentSales() {
+        return saleRepository.findTop5ByOrderByCreatedAtDesc().stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
     }
 
     /**

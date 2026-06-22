@@ -175,6 +175,18 @@ public class SaleController {
     }
 
     /**
+     * Get the most recent sales transactions.
+     * 
+     * @return ResponseEntity<ApiResponse<List<SaleResponseDTO>>> latest sales
+     */
+    @GetMapping("/recent")
+    @Operation(summary = "Get recent sales", description = "Retrieve the most recent sales transactions")
+    public ResponseEntity<ApiResponse<List<SaleResponseDTO>>> getRecentSales() {
+        List<SaleResponseDTO> recentSales = saleService.getRecentSales();
+        return ResponseEntity.ok(ApiResponse.success(recentSales));
+    }
+
+    /**
      * Get total revenue from all sales.
      * 
      * HTTP Method: GET
