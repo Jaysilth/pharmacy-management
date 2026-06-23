@@ -33,8 +33,7 @@ build/
 .vscode/
  
 ### Spring Boot - Sensitive Configuration ### 
-# Application config files with sensitive data (DB credentials, API keys, etc.) 
-src/main/resources/application.properties 
+# Application config files with sensitive data (DB credentials, API keys, etc.)
 src/main/resources/application.yml 
 src/main/resources/application-local.properties 
 src/main/resources/application-dev.properties 
@@ -44,7 +43,7 @@ src/main/resources/application-secret.properties
 # Environment variables and secrets 
 .env 
 .env.local 
-.env.*.local 
+.env.*.local
  
 # Secrets and keystores 
 *.p12 
@@ -54,5 +53,4 @@ src/main/resources/application-secret.properties
 *.crt 
 secrets/ 
 secrets.json 
-credentials.json 
-config/secrets/ 
+credentials.json
