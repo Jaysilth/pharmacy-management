@@ -30,7 +30,7 @@ import java.util.List; // For returning lists of medicines
 
 /**
  * MedicineController - REST API endpoints for Medicine operations.
- * 
+ *
  * This controller handles all HTTP requests related to medicine management.
  * It provides a RESTful API that clients can use to:
  * - Add new medicines to inventory
@@ -40,13 +40,13 @@ import java.util.List; // For returning lists of medicines
  * - Update medicine information
  * - Delete medicines
  * - View expired and low-stock medicines
- * 
+ *
  * Key features:
  * - All endpoints are under /api/medicines base path
  * - Returns standardized ApiResponse<T> wrapper
  * - Uses @Valid to validate request bodies
  * - Includes Swagger/OpenAPI documentation annotations
- * 
+ *
  * Design:
  * - Follows RESTful conventions
  * - Uses HTTP status codes appropriately (200, 201, 404, etc.)
@@ -62,7 +62,7 @@ public class MedicineController {
 
     /**
      * Service layer instance for medicine operations.
-     * 
+     *
      * Injected via constructor by Lombok.
      * All business logic is delegated to this service.
      */
@@ -70,20 +70,20 @@ public class MedicineController {
 
     /**
      * Add a new medicine to the inventory.
-     * 
+     *
      * HTTP Method: POST
      * URL: /api/medicines
-     * 
+     *
      * This endpoint creates a new medicine record in the database.
      * It validates the request body using Jakarta Bean Validation annotations
      * defined in MedicineRequestDTO.
-     * 
+     *
      * @param requestDTO The medicine data from the request body
      *                    Must be validated (@Valid triggers validation)
      * @return ResponseEntity<ApiResponse<MedicineResponseDTO>>
      *         - 201 Created: Medicine was successfully created
      *         - 400 Bad Request: Validation failed
-     * 
+     *
      * Example request:
      * {
      *   "name": "Paracetamol 500mg",
@@ -100,10 +100,10 @@ public class MedicineController {
     public ResponseEntity<ApiResponse<MedicineResponseDTO>> addMedicine(
             // @Valid triggers validation defined in MedicineRequestDTO
             @Valid @RequestBody MedicineRequestDTO requestDTO) {
-        
+
         // Call service to create the medicine
         MedicineResponseDTO response = medicineService.addMedicine(requestDTO);
-        
+
         // Return 201 Created with success response
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Medicine added successfully", response));
@@ -111,34 +111,39 @@ public class MedicineController {
 
     /**
      * Get all medicines from the inventory.
-     * 
+     *
      * HTTP Method: GET
      * URL: /api/medicines
-     * 
+     *
      * Retrieves a list of all medicines in the system.
      * Returns empty list if no medicines exist.
-     * 
+     *
      * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
      *         - 200 OK: Always returns success with list (could be empty)
      */
     @GetMapping // Maps to HTTP GET requests
-    @Operation(summary = "Get all medicines", description = "Retrieve all medicines from the inventory")
-    public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getAllMedicines() {
-        // Call service to get all medicines
-        List<MedicineResponseDTO> medicines = medicineService.getAllMedicines();
-        
+    @Operation(summary = "Get all medicines", description = "Retrieve all medicines from the inventory, optionally filtered by search term")
+    public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getAllMedicines(
+            @Parameter(description = "Optional search term to filter medicines by name")
+            @RequestParam(required = false) String search) {
+
+        // If a search term is provided, delegate to searchMedicines; otherwise return all
+        List<MedicineResponseDTO> medicines = (search != null && !search.isBlank())
+                ? medicineService.searchMedicines(search)
+                : medicineService.getAllMedicines();
+
         // Return 200 OK with the list
         return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 
     /**
      * Get a specific medicine by its ID.
-     * 
+     *
      * HTTP Method: GET
      * URL: /api/medicines/{id}
-     * 
+     *
      * Retrieves detailed information about a single medicine.
-     * 
+     *
      * @param id The unique identifier of the medicine (from URL path)
      *           @PathVariable binds this from the URL
      * @return ResponseEntity<ApiResponse<MedicineResponseDTO>>
@@ -150,23 +155,23 @@ public class MedicineController {
     public ResponseEntity<ApiResponse<MedicineResponseDTO>> getMedicineById(
             // @Parameter used for Swagger documentation
             @Parameter(description = "Medicine ID") @PathVariable Long id) {
-        
+
         // Call service to get medicine by ID (throws exception if not found)
         MedicineResponseDTO medicine = medicineService.getMedicineById(id);
-        
+
         // Return 200 OK with the medicine
         return ResponseEntity.ok(ApiResponse.success(medicine));
     }
 
     /**
      * Get all expired medicines.
-     * 
+     *
      * HTTP Method: GET
      * URL: /api/medicines/expired
-     * 
+     *
      * Returns medicines that have passed their expiry date.
      * Useful for inventory management and quality control.
-     * 
+     *
      * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
      *         - 200 OK: Returns list of expired medicines (could be empty)
      */
@@ -175,20 +180,20 @@ public class MedicineController {
     public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getExpiredMedicines() {
         // Call service to find expired medicines
         List<MedicineResponseDTO> medicines = medicineService.getExpiredMedicines();
-        
+
         // Return 200 OK with the list
         return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 
     /**
      * Get all medicines with low stock.
-     * 
+     *
      * HTTP Method: GET
      * URL: /api/medicines/low-stock
-     * 
+     *
      * Returns medicines where quantity is at or below the lowStockThreshold.
      * Useful for identifying items that need restocking.
-     * 
+     *
      * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
      *         - 200 OK: Returns list of low stock medicines (could be empty)
      */
@@ -197,20 +202,20 @@ public class MedicineController {
     public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getLowStockMedicines() {
         // Call service to find low stock medicines
         List<MedicineResponseDTO> medicines = medicineService.getLowStockMedicines();
-        
+
         // Return 200 OK with the list
         return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 
     /**
      * Get all medicines expiring soon.
-     * 
+     *
      * HTTP Method: GET
      * URL: /api/medicines/expiring-soon
-     * 
+     *
      * Returns medicines that are approaching their expiry date.
      * Useful for inventory management and preventing sale of expiring products.
-     * 
+     *
      * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
      *         - 200 OK: Returns list of expiring soon medicines (could be empty)
      */
@@ -219,19 +224,19 @@ public class MedicineController {
     public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getExpiringSoonMedicines() {
         // Call service to find expiring soon medicines
         List<MedicineResponseDTO> medicines = medicineService.getExpiringSoonMedicines();
-        
+
         // Return 200 OK with the list
         return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 
     /**
      * Search medicines by name.
-     * 
+     *
      * HTTP Method: GET
      * URL: /api/medicines/search?name={name}
-     * 
+     *
      * Performs a case-insensitive partial match search on medicine names.
-     * 
+     *
      * @param name The search term as a query parameter
      *             @RequestParam binds this from URL query string
      * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
@@ -241,23 +246,23 @@ public class MedicineController {
     @Operation(summary = "Search medicines", description = "Search medicines by name")
     public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> searchMedicines(
             @Parameter(description = "Medicine name to search") @RequestParam String name) {
-        
+
         // Call service to search medicines by name
         List<MedicineResponseDTO> medicines = medicineService.searchMedicines(name);
-        
+
         // Return 200 OK with the results
         return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 
     /**
      * Update an existing medicine.
-     * 
+     *
      * HTTP Method: PUT
      * URL: /api/medicines/{id}
-     * 
+     *
      * Updates all fields of an existing medicine record.
      * Partial updates are supported (only provided fields are updated).
-     * 
+     *
      * @param id The ID of the medicine to update (from URL path)
      * @param requestDTO The new medicine data (from request body)
      * @return ResponseEntity<ApiResponse<MedicineResponseDTO>>
@@ -271,22 +276,22 @@ public class MedicineController {
     public ResponseEntity<ApiResponse<MedicineResponseDTO>> updateMedicine(
             @Parameter(description = "Medicine ID") @PathVariable Long id,
             @Valid @RequestBody MedicineRequestDTO requestDTO) {
-        
+
         // Call service to update the medicine
         MedicineResponseDTO response = medicineService.updateMedicine(id, requestDTO);
-        
+
         // Return 200 OK with success message
         return ResponseEntity.ok(ApiResponse.success("Medicine updated successfully", response));
     }
 
     /**
      * Delete a medicine from the inventory.
-     * 
+     *
      * HTTP Method: DELETE
      * URL: /api/medicines/{id}
-     * 
+     *
      * Removes a medicine record from the database.
-     * 
+     *
      * @param id The ID of the medicine to delete (from URL path)
      * @return ResponseEntity<ApiResponse<Void>>
      *         - 200 OK: Medicine was successfully deleted
@@ -297,10 +302,10 @@ public class MedicineController {
     @Operation(summary = "Delete medicine", description = "Delete a medicine from the inventory")
     public ResponseEntity<ApiResponse<Void>> deleteMedicine(
             @Parameter(description = "Medicine ID") @PathVariable Long id) {
-        
+
         // Call service to delete the medicine
         medicineService.deleteMedicine(id);
-        
+
         // Return 200 OK with success message (null data for delete responses)
         return ResponseEntity.ok(ApiResponse.success("Medicine deleted successfully", null));
     }
