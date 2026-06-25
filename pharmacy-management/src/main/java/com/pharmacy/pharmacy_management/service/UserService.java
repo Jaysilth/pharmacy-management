@@ -76,21 +76,18 @@ public class UserService {
     public UserResponseDTO updateUser(Long id, UserRequestDTO request) {
         User user = findUserOrThrow(id);
 
-        // Check username uniqueness only if it changed
         if (!user.getUsername().equals(request.getUsername())
                 && userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalStateException(
                     "Username '" + request.getUsername() + "' is already taken.");
         }
 
-        // Check email uniqueness only if it changed
         if (!user.getEmail().equals(request.getEmail())
                 && userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalStateException(
                     "Email '" + request.getEmail() + "' is already registered.");
         }
 
-        // Guard: cannot remove SUPER_ADMIN role if this is the last SUPER_ADMIN
         boolean willLoseSuperAdmin = user.getRoles().stream()
                 .anyMatch(r -> r.getName().equals(ROLE_SUPER_ADMIN))
                 && (request.getRoles() == null
@@ -104,7 +101,6 @@ public class UserService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
 
-        // Only update password if a new one is provided
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
@@ -121,14 +117,12 @@ public class UserService {
     public void deleteUser(Long id) {
         User user = findUserOrThrow(id);
 
-        // Cannot delete yourself
         String currentUsername = SecurityContextHolder.getContext()
                 .getAuthentication().getName();
         if (user.getUsername().equals(currentUsername)) {
             throw new IllegalStateException("You cannot delete your own account.");
         }
 
-        // Cannot delete the last SUPER_ADMIN
         if (user.getRoles().stream().anyMatch(r -> r.getName().equals(ROLE_SUPER_ADMIN))
                 && isLastSuperAdmin(user)) {
             throw new IllegalStateException(
@@ -149,14 +143,12 @@ public class UserService {
     public UserResponseDTO deactivateUser(Long id) {
         User user = findUserOrThrow(id);
 
-        // Cannot deactivate yourself
         String currentUsername = SecurityContextHolder.getContext()
                 .getAuthentication().getName();
         if (user.getUsername().equals(currentUsername)) {
             throw new IllegalStateException("You cannot deactivate your own account.");
         }
 
-        // Cannot deactivate the last SUPER_ADMIN
         if (user.getRoles().stream().anyMatch(r -> r.getName().equals(ROLE_SUPER_ADMIN))
                 && isLastSuperAdmin(user)) {
             throw new IllegalStateException(
@@ -167,6 +159,15 @@ public class UserService {
         return mapToResponseDTO(userRepository.save(user));
     }
 
+    // ── Current User ─────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public UserResponseDTO getCurrentUserProfile(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        return mapToResponseDTO(user);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private User findUserOrThrow(Long id) {
@@ -174,10 +175,6 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
     }
 
-    /**
-     * Resolves role name strings to Role entities.
-     * Falls back to ROLE_ADMIN if no roles are provided.
-     */
     private Set<Role> resolveRoles(Set<String> roleNames) {
         if (roleNames == null || roleNames.isEmpty()) {
             Role defaultRole = roleRepository.findByName(DEFAULT_ROLE)
@@ -196,9 +193,6 @@ public class UserService {
         return roles;
     }
 
-    /**
-     * Returns true if the given user is the only remaining SUPER_ADMIN.
-     */
     private boolean isLastSuperAdmin(User user) {
         long superAdminCount = userRepository.findAll().stream()
                 .filter(u -> u.getRoles().stream()
