@@ -47,6 +47,13 @@ public class SaleController {
     public ResponseEntity<ApiResponse<List<SaleResponseDTO>>> getRecentSales() {
         return ResponseEntity.ok(ApiResponse.success(saleService.getRecentSales()));
     }
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Delete a sale — SUPER_ADMIN only")
+    public ResponseEntity<ApiResponse<Void>> deleteSale(@PathVariable Long id) {
+        saleService.deleteSale(id);
+        return ResponseEntity.ok(ApiResponse.success("Sale deleted.", null));
+    }
 
     @GetMapping("/revenue")
     public ResponseEntity<ApiResponse<BigDecimal>> getTotalRevenue() {

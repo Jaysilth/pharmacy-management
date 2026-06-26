@@ -229,4 +229,10 @@ public class SaleService {
         if (sale.getTotalPrice() != null) return sale.getTotalPrice();
         return BigDecimal.ZERO;
     }
+
+    public void deleteSale(Long id) {
+        Sale sale = saleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Sale not found with id: " + id));
+        saleRepository.delete(sale);
+    }
 }
