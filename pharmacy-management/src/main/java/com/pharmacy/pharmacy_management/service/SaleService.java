@@ -38,6 +38,11 @@ public class SaleService {
                 .paymentMethod(request.getPaymentMethod())
                 .notes(request.getNotes())
                 .items(new ArrayList<>())
+                // Legacy fields — set to zero for new multi-item sales so existing
+                // NOT NULL constraints (if present) are satisfied. The real totals
+                // are stored in grandTotal and in the sale_items table.
+                .quantity(0)
+                .unitPrice(BigDecimal.ZERO)
                 .build();
 
         BigDecimal grandTotal = BigDecimal.ZERO;
