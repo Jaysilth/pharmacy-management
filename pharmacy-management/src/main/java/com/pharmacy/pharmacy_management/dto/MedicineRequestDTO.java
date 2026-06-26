@@ -113,6 +113,12 @@ public class MedicineRequestDTO {
      */
     private String description;
 
+    @Pattern(
+            regexp = "^(EYEDROP|TABLET|INJECTION|SYRUP)$",
+            message = "Category must be one of: EYEDROP, TABLET, INJECTION, SYRUP"
+    )
+    private String category;
+
     /**
      * Manufacturer of the medicine.
      * 

@@ -91,6 +91,9 @@ public class MedicineResponseDTO {
      * 
      * The pharmaceutical company that produces this medicine.
      */
+
+    private String category;
+
     private String manufacturer;
 
     /**

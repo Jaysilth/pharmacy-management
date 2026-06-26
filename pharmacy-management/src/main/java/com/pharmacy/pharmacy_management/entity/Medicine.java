@@ -124,6 +124,10 @@ public class Medicine {
      * Records the pharmaceutical company that produces this medicine.
      * Useful for tracking supplier information and quality control.
      */
+
+    @Column(length = 20)
+    private String category; // EYEDROP, TABLET, INJECTION, SYRUP
+
     @Column(name = "manufacturer", length = 255)
     private String manufacturer;
 

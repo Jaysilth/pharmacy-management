@@ -121,18 +121,22 @@ public class MedicineController {
      * @return ResponseEntity<ApiResponse<List<MedicineResponseDTO>>>
      *         - 200 OK: Always returns success with list (could be empty)
      */
-    @GetMapping // Maps to HTTP GET requests
-    @Operation(summary = "Get all medicines", description = "Retrieve all medicines from the inventory, optionally filtered by search term")
+    @GetMapping
+    @Operation(summary = "Get all medicines. Optional ?search= and ?category=")
     public ResponseEntity<ApiResponse<List<MedicineResponseDTO>>> getAllMedicines(
-            @Parameter(description = "Optional search term to filter medicines by name")
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String category) {
 
-        // If a search term is provided, delegate to searchMedicines; otherwise return all
-        List<MedicineResponseDTO> medicines = (search != null && !search.isBlank())
-                ? medicineService.searchMedicines(search)
-                : medicineService.getAllMedicines();
+        List<MedicineResponseDTO> medicines;
 
-        // Return 200 OK with the list
+        if (search != null && !search.isBlank()) {
+            medicines = medicineService.searchMedicines(search);
+        } else if (category != null && !category.isBlank()) {
+            medicines = medicineService.getMedicinesByCategory(category);
+        } else {
+            medicines = medicineService.getAllMedicines();
+        }
+
         return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 

@@ -73,6 +73,9 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
      * Example:
      * - findExpiredMedicines(LocalDate.now()) returns all expired medicines
      */
+
+    List<Medicine> findByCategoryOrderByNameAsc(String category);
+
     @Query("SELECT m FROM Medicine m WHERE m.expiryDate < :date")
     List<Medicine> findExpiredMedicines(LocalDate date);
 
@@ -119,6 +122,8 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
      * @param deadline The latest expiry date to include
      * @return List of medicines expiring soon
      */
+
+
     @Query("SELECT m FROM Medicine m WHERE m.expiryDate BETWEEN :today AND :deadline ORDER BY m.expiryDate ASC")
     List<Medicine> findExpiringSoonMedicines(LocalDate today, LocalDate deadline);
 
