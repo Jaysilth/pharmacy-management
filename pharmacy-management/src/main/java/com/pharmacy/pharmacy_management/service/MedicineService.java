@@ -34,6 +34,7 @@ public class MedicineService {
                 .lowStockThreshold(requestDTO.getLowStockThreshold() != null ? requestDTO.getLowStockThreshold() : 10)
                 .description(requestDTO.getDescription())
                 .manufacturer(requestDTO.getManufacturer())
+                .category(requestDTO.getCategory())
                 .build();
 
         Medicine savedMedicine = medicineRepository.save(medicine);
@@ -105,6 +106,13 @@ public class MedicineService {
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
     }
+    @Transactional(readOnly = true)
+    public List<MedicineResponseDTO> getMedicinesByCategory(String category) {
+        return medicineRepository.findByCategoryOrderByNameAsc(category)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
 
     public MedicineResponseDTO updateMedicine(Long id, MedicineRequestDTO requestDTO) {
         Medicine medicine = medicineRepository.findById(id)
@@ -114,6 +122,7 @@ public class MedicineService {
         medicine.setQuantity(requestDTO.getQuantity());
         medicine.setPrice(requestDTO.getPrice());
         medicine.setExpiryDate(requestDTO.getExpiryDate());
+        medicine.setCategory(requestDTO.getCategory());
 
         if (requestDTO.getLowStockThreshold() != null) {
             medicine.setLowStockThreshold(requestDTO.getLowStockThreshold());
@@ -166,6 +175,7 @@ public class MedicineService {
                 .name(medicine.getName())
                 .quantity(medicine.getQuantity())
                 .price(medicine.getPrice())
+                .category(medicine.getCategory())
                 .expiryDate(medicine.getExpiryDate())
                 .lowStockThreshold(medicine.getLowStockThreshold())
                 .description(medicine.getDescription())

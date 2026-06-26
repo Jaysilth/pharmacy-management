@@ -4,6 +4,7 @@ package com.pharmacy.pharmacy_management.dto;
 // These are used to validate request data before processing
 import jakarta.validation.constraints.NotBlank; // Validates that a string is not blank
 import jakarta.validation.constraints.NotNull; // Validates that a value is not null
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive; // Validates that a number is positive
 
 // Lombok imports for automatic code generation
@@ -93,6 +94,12 @@ public class MedicineRequestDTO {
     @NotNull(message = "Expiry date is required")
     private LocalDate expiryDate;
 
+    @Pattern(
+            regexp = "^(EYEDROP|TABLET|INJECTION|SYRUP)$",
+            message = "Category must be one of: EYEDROP, TABLET, INJECTION, SYRUP"
+    )
+    private String category;
+
     /**
      * Low stock threshold for alerts.
      * 
@@ -112,6 +119,8 @@ public class MedicineRequestDTO {
      * Can include usage instructions, side effects, storage requirements, etc.
      */
     private String description;
+
+
 
     /**
      * Manufacturer of the medicine.
