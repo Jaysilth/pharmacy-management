@@ -125,11 +125,13 @@ public class Medicine {
      * Useful for tracking supplier information and quality control.
      */
 
-    @Column(length = 20)
-    private String category; // EYEDROP, TABLET, INJECTION, SYRUP
 
     @Column(name = "manufacturer", length = 255)
     private String manufacturer;
+
+    @Column(length = 20)
+    private String category; // EYEDROP, TABLET, INJECTION, SYRUP
+
 
     /**
      * Timestamp when this medicine record was created.

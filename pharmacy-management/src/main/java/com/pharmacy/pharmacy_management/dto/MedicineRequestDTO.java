@@ -94,11 +94,7 @@ public class MedicineRequestDTO {
     @NotNull(message = "Expiry date is required")
     private LocalDate expiryDate;
 
-    @Pattern(
-            regexp = "^(EYEDROP|TABLET|INJECTION|SYRUP)$",
-            message = "Category must be one of: EYEDROP, TABLET, INJECTION, SYRUP"
-    )
-    private String category;
+
 
     /**
      * Low stock threshold for alerts.
@@ -129,4 +125,10 @@ public class MedicineRequestDTO {
      * this medicine. Useful for tracking suppliers and source information.
      */
     private String manufacturer;
+
+    @Pattern(
+            regexp = "^(EYEDROP|TABLET|INJECTION|SYRUP)$",
+            message = "Category must be one of: EYEDROP, TABLET, INJECTION, SYRUP"
+    )
+    private String category;
 }
