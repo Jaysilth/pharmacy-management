@@ -122,7 +122,7 @@ public class MedicineService {
         medicine.setQuantity(requestDTO.getQuantity());
         medicine.setPrice(requestDTO.getPrice());
         medicine.setExpiryDate(requestDTO.getExpiryDate());
-        medicine.setCategory(requestDTO.getCategory());
+
 
         if (requestDTO.getLowStockThreshold() != null) {
             medicine.setLowStockThreshold(requestDTO.getLowStockThreshold());
@@ -130,6 +130,7 @@ public class MedicineService {
 
         medicine.setDescription(requestDTO.getDescription());
         medicine.setManufacturer(requestDTO.getManufacturer());
+        medicine.setCategory(requestDTO.getCategory());
 
         Medicine updatedMedicine = medicineRepository.save(medicine);
         return mapToResponseDTO(updatedMedicine);
@@ -175,11 +176,11 @@ public class MedicineService {
                 .name(medicine.getName())
                 .quantity(medicine.getQuantity())
                 .price(medicine.getPrice())
-                .category(medicine.getCategory())
                 .expiryDate(medicine.getExpiryDate())
                 .lowStockThreshold(medicine.getLowStockThreshold())
                 .description(medicine.getDescription())
                 .manufacturer(medicine.getManufacturer())
+                .category(medicine.getCategory())
                 .createdAt(medicine.getCreatedAt())
                 .updatedAt(medicine.getUpdatedAt())
                 .isExpired(medicine.isExpired())
