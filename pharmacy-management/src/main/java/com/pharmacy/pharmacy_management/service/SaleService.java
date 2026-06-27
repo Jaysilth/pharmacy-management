@@ -21,12 +21,15 @@ import java.util.stream.Collectors;
 @Transactional
 public class SaleService {
 
-    private final SaleRepository      saleRepository;
-    private final MedicineRepository  medicineRepository;
-    private final GlassesRepository   glassesRepository;
-    private final SurgeryRepository   surgeryRepository;
-    private final MedicineService     medicineService;
-    private final GlassesService      glassesService;
+    private final SaleRepository              saleRepository;
+    private final MedicineRepository          medicineRepository;
+    private final GlassesRepository           glassesRepository;
+    private final GlassesAccessoryRepository  glassesAccessoryRepository;
+    private final GlassesRepairRepository     glassesRepairRepository;
+    private final SurgeryRepository           surgeryRepository;
+    private final MedicineService             medicineService;
+    private final GlassesService              glassesService;
+    private final GlassesAccessoryService     glassesAccessoryService;
 
     public SaleResponseDTO createSale(SaleRequestDTO request) {
         String saleNumber = "SAL-" + System.currentTimeMillis();
@@ -38,9 +41,6 @@ public class SaleService {
                 .paymentMethod(request.getPaymentMethod())
                 .notes(request.getNotes())
                 .items(new ArrayList<>())
-                // Legacy fields — set to zero for new multi-item sales so existing
-                // NOT NULL constraints (if present) are satisfied. The real totals
-                // are stored in grandTotal and in the sale_items table.
                 .quantity(0)
                 .unitPrice(BigDecimal.ZERO)
                 .build();
@@ -54,7 +54,7 @@ public class SaleService {
         }
 
         sale.setGrandTotal(grandTotal);
-        sale.setTotalPrice(grandTotal); // kept for dashboard backward compat
+        sale.setTotalPrice(grandTotal);
 
         return mapToResponseDTO(saleRepository.save(sale));
     }
@@ -74,7 +74,7 @@ public class SaleService {
                             "Insufficient stock for %s. Available: %d, Requested: %d",
                             med.getName(), med.getQuantity(), input.getQuantity()));
                 medicineService.reduceStock(med.getId(), input.getQuantity());
-                itemName = med.getName();
+                itemName  = med.getName();
                 unitPrice = med.getPrice();
                 break;
             }
@@ -86,15 +86,45 @@ public class SaleService {
                             "Insufficient stock for %s. Available: %d, Requested: %d",
                             g.getName(), g.getQuantity(), input.getQuantity()));
                 glassesService.reduceStock(g.getId(), input.getQuantity());
-                itemName = g.getName() + (g.getBrand() != null ? " (" + g.getBrand() + ")" : "");
+                itemName  = g.getName() + (g.getBrand() != null ? " (" + g.getBrand() + ")" : "");
                 unitPrice = g.getPrice();
+                break;
+            }
+            case "GLASSES_ACCESSORY": {
+                GlassesAccessory acc = glassesAccessoryRepository.findById(input.getItemId())
+                        .orElseThrow(() -> new RuntimeException("Accessory not found: " + input.getItemId()));
+                if (acc.getQuantity() < input.getQuantity())
+                    throw new InsufficientStockException(String.format(
+                            "Insufficient stock for %s. Available: %d, Requested: %d",
+                            acc.getName(), acc.getQuantity(), input.getQuantity()));
+                glassesAccessoryService.reduceStock(acc.getId(), input.getQuantity());
+                itemName  = acc.getName();
+                unitPrice = acc.getPrice();
+                break;
+            }
+            case "GLASSES_REPAIR": {
+                GlassesRepair repair = glassesRepairRepository.findById(input.getItemId())
+                        .orElseThrow(() -> new RuntimeException("Repair service not found: " + input.getItemId()));
+                itemName  = repair.getName();
+                unitPrice = repair.getPrice();
                 break;
             }
             case "SURGERY": {
                 Surgery s = surgeryRepository.findById(input.getItemId())
                         .orElseThrow(() -> new RuntimeException("Surgery not found: " + input.getItemId()));
-                itemName = s.getName();
+                itemName  = s.getName();
                 unitPrice = s.getPrice();
+                break;
+            }
+            // localStorage-backed clinical items — name and price come from frontend
+            case "CLINIC_VISIT":
+            case "PROCEDURE":
+            case "LAB_TEST": {
+                if (input.getItemName() == null || input.getUnitPrice() == null)
+                    throw new IllegalArgumentException(
+                            input.getItemType() + " requires itemName and unitPrice fields.");
+                itemName  = input.getItemName();
+                unitPrice = input.getUnitPrice();
                 break;
             }
             default:
@@ -102,17 +132,18 @@ public class SaleService {
         }
 
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(input.getQuantity()));
-
         return SaleItem.builder()
                 .sale(sale)
                 .itemType(input.getItemType().toUpperCase())
-                .itemId(input.getItemId())
+                .itemId(input.getItemId() != null ? input.getItemId() : 0L)
                 .itemName(itemName)
                 .quantity(input.getQuantity())
                 .unitPrice(unitPrice)
                 .subtotal(subtotal)
                 .build();
     }
+
+    // ── Read ──────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<SaleResponseDTO> getAllSales() {
@@ -130,6 +161,11 @@ public class SaleService {
     public List<SaleResponseDTO> getRecentSales() {
         return saleRepository.findTop5ByOrderByCreatedAtDesc()
                 .stream().map(this::mapToResponseDTO).collect(Collectors.toList());
+    }
+
+    public void deleteSale(Long id) {
+        saleRepository.delete(saleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Sale not found: " + id)));
     }
 
     @Transactional(readOnly = true)
@@ -157,18 +193,14 @@ public class SaleService {
     public List<SalesByDayDTO> getSalesByDay(int days) {
         LocalDate end   = LocalDate.now();
         LocalDate start = end.minusDays(days - 1);
-        LocalDateTime startDT = start.atStartOfDay();
-        LocalDateTime endDT   = end.atTime(LocalTime.MAX);
-
         Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
         for (int i = 0; i < days; i++) totals.put(start.plusDays(i), BigDecimal.ZERO);
-
-        saleRepository.findSalesByDateRange(startDT, endDT).forEach(sale -> {
-            LocalDate saleDate = sale.getCreatedAt().toLocalDate();
-            BigDecimal amount  = effectiveTotal(sale);
-            totals.compute(saleDate, (k, v) -> v == null ? amount : v.add(amount));
-        });
-
+        saleRepository.findSalesByDateRange(start.atStartOfDay(), end.atTime(LocalTime.MAX))
+                .forEach(s -> {
+                    LocalDate d = s.getCreatedAt().toLocalDate();
+                    BigDecimal amt = effectiveTotal(s);
+                    totals.compute(d, (k, v) -> v == null ? amt : v.add(amt));
+                });
         return totals.entrySet().stream()
                 .map(e -> SalesByDayDTO.builder().date(e.getKey().toString()).totalRevenue(e.getValue()).build())
                 .collect(Collectors.toList());
@@ -178,26 +210,19 @@ public class SaleService {
 
     private SaleResponseDTO mapToResponseDTO(Sale sale) {
         List<SaleItemResponseDTO> itemDTOs;
-
         if (sale.getItems() != null && !sale.getItems().isEmpty()) {
-            // New multi-item sale
             itemDTOs = sale.getItems().stream()
                     .map(i -> SaleItemResponseDTO.builder()
                             .itemType(i.getItemType()).itemId(i.getItemId())
                             .itemName(i.getItemName()).quantity(i.getQuantity())
-                            .unitPrice(i.getUnitPrice()).subtotal(i.getSubtotal())
-                            .build())
+                            .unitPrice(i.getUnitPrice()).subtotal(i.getSubtotal()).build())
                     .collect(Collectors.toList());
         } else if (sale.getMedicine() != null) {
-            // Legacy single-medicine sale
             itemDTOs = List.of(SaleItemResponseDTO.builder()
-                    .itemType("MEDICINE")
-                    .itemId(sale.getMedicine().getId())
+                    .itemType("MEDICINE").itemId(sale.getMedicine().getId())
                     .itemName(sale.getMedicine().getName())
-                    .quantity(sale.getQuantity())
-                    .unitPrice(sale.getUnitPrice())
-                    .subtotal(sale.getTotalPrice())
-                    .build());
+                    .quantity(sale.getQuantity()).unitPrice(sale.getUnitPrice())
+                    .subtotal(sale.getTotalPrice()).build());
         } else {
             itemDTOs = List.of();
         }
@@ -205,22 +230,13 @@ public class SaleService {
         return SaleResponseDTO.builder()
                 .id(sale.getId())
                 .saleNumber(sale.getSaleNumber() != null ? sale.getSaleNumber() : "SAL-" + sale.getId())
-                .customerName(sale.getCustomerName())
-                .customerPhone(sale.getCustomerPhone())
-                .paymentMethod(sale.getPaymentMethod())
-                .notes(sale.getNotes())
-                .grandTotal(effectiveTotal(sale))
-                .items(itemDTOs)
-                .createdAt(sale.getCreatedAt())
-                // Legacy fields for old records
+                .customerName(sale.getCustomerName()).customerPhone(sale.getCustomerPhone())
+                .paymentMethod(sale.getPaymentMethod()).notes(sale.getNotes())
+                .grandTotal(effectiveTotal(sale)).items(itemDTOs).createdAt(sale.getCreatedAt())
                 .medicine(sale.getMedicine() != null ? SaleResponseDTO.MedicineInfo.builder()
-                        .id(sale.getMedicine().getId())
-                        .name(sale.getMedicine().getName())
-                        .manufacturer(sale.getMedicine().getManufacturer())
-                        .build() : null)
-                .quantity(sale.getQuantity())
-                .unitPrice(sale.getUnitPrice())
-                .totalPrice(sale.getTotalPrice())
+                        .id(sale.getMedicine().getId()).name(sale.getMedicine().getName())
+                        .manufacturer(sale.getMedicine().getManufacturer()).build() : null)
+                .quantity(sale.getQuantity()).unitPrice(sale.getUnitPrice()).totalPrice(sale.getTotalPrice())
                 .build();
     }
 
@@ -228,11 +244,5 @@ public class SaleService {
         if (sale.getGrandTotal() != null) return sale.getGrandTotal();
         if (sale.getTotalPrice() != null) return sale.getTotalPrice();
         return BigDecimal.ZERO;
-    }
-
-    public void deleteSale(Long id) {
-        Sale sale = saleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Sale not found with id: " + id));
-        saleRepository.delete(sale);
     }
 }
