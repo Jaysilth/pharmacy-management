@@ -16,23 +16,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Set;
 
 /**
- * DataInitializer — seeds the database with roles and initial users on startup.
+ * DataInitializer — seeds roles on every boot, and creates ONE initial
+ * SUPER_ADMIN if and only if the users table is completely empty.
  *
- * This replaces the InMemoryUserDetailsManager bootstrapping that was in
- * SecurityConfig. It reads from the same environment variables already set
- * on Render, so no new config is needed after deployment.
- *
- * It is fully IDEMPOTENT — safe to run on every application startup.
- * If roles/users already exist, they are not recreated or overwritten.
- *
- * Env vars consumed (already set on Render from the previous deployment):
- *   PHARMACY_SUPERADMIN_USERNAME  (default: superadmin)
- *   PHARMACY_SUPERADMIN_PASSWORD  (default: SuperAdmin123!)
- *   PHARMACY_ADMIN_USERNAME       (default: admin)
- *   PHARMACY_ADMIN_PASSWORD       (default: Admin123!)
- *
- * Note: passwords are only set at initial creation. If a user already exists,
- * their password is NOT reset on restart — changes persist.
+ * SECURITY CONTRACT:
+ * - Roles are never sensitive; always seeded.
+ * - Users are ONLY seeded when userRepository.count() == 0 (first boot on
+ *   a fresh database). If any user exists — including previously deleted
+ *   ones that were re-created — this block is entirely skipped.
+ * - There are NO default credential fallbacks. If INITIAL_SUPERADMIN_USERNAME
+ *   or INITIAL_SUPERADMIN_PASSWORD are missing, the app logs a warning and
+ *   skips user seeding rather than using a hardcoded password.
+ * - Once your first real user is created via the UI, remove
+ *   INITIAL_SUPERADMIN_USERNAME and INITIAL_SUPERADMIN_PASSWORD from your
+ *   Render environment variables entirely. They serve no purpose after that.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,18 +40,18 @@ public class DataInitializer implements ApplicationRunner {
     private static final String ROLE_SUPER_ADMIN = "ROLE_SUPER_ADMIN";
     private static final String ROLE_ADMIN       = "ROLE_ADMIN";
 
-    private final RoleRepository    roleRepository;
-    private final UserRepository    userRepository;
-    private final PasswordEncoder   passwordEncoder;
+    private final RoleRepository  roleRepository;
+    private final UserRepository  userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
         seedRoles();
-        seedUsers();
+        seedInitialUserIfEmpty();
     }
 
-    // ── Roles ────────────────────────────────────────────────────────────────
+    // ── Roles ─────────────────────────────────────────────────────────────────
 
     private void seedRoles() {
         createRoleIfAbsent(ROLE_SUPER_ADMIN, "Full system access including user management");
@@ -71,44 +68,63 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
-    // ── Users ────────────────────────────────────────────────────────────────
+    // ── Bootstrap user (first boot only) ──────────────────────────────────────
 
-    private void seedUsers() {
-        String superAdminUsername = env("PHARMACY_SUPERADMIN_USERNAME", "superadmin");
-        String superAdminPassword = env("PHARMACY_SUPERADMIN_PASSWORD", "SuperAdmin123!");
-        String superAdminEmail    = env("PHARMACY_SUPERADMIN_EMAIL",    "superadmin@jotesseyespecialist.com");
+    private void seedInitialUserIfEmpty() {
+        if (userRepository.count() > 0) {
+            // Users already exist — do nothing. This covers:
+            // - Normal restarts after initial setup
+            // - Redeployments on Render
+            // - Cases where a user was deleted: they stay deleted.
+            log.debug("Users table is not empty — skipping initial user seeding.");
+            return;
+        }
 
-        String adminUsername      = env("PHARMACY_ADMIN_USERNAME",      "admin");
-        String adminPassword      = env("PHARMACY_ADMIN_PASSWORD",      "Admin123!");
-        String adminEmail         = env("PHARMACY_ADMIN_EMAIL",         "admin@jotesseyespecialist.com");
+        String username = System.getenv("INITIAL_SUPERADMIN_USERNAME");
+        String password = System.getenv("INITIAL_SUPERADMIN_PASSWORD");
+        String email    = System.getenv("INITIAL_SUPERADMIN_EMAIL");
+
+        if (isBlank(username) || isBlank(password)) {
+            log.warn(
+                    "================================================================\n" +
+                            "  FRESH DATABASE DETECTED — no users exist.\n" +
+                            "  Set INITIAL_SUPERADMIN_USERNAME and INITIAL_SUPERADMIN_PASSWORD\n" +
+                            "  as environment variables, then restart to create the first user.\n" +
+                            "  Remove these env vars after your first login.\n" +
+                            "================================================================"
+            );
+            return;
+        }
+
+        if (isBlank(email)) {
+            email = username + "@jotesseyespecialist.com";
+        }
 
         Role superAdminRole = roleRepository.findByName(ROLE_SUPER_ADMIN)
                 .orElseThrow(() -> new IllegalStateException("ROLE_SUPER_ADMIN not seeded"));
         Role adminRole = roleRepository.findByName(ROLE_ADMIN)
                 .orElseThrow(() -> new IllegalStateException("ROLE_ADMIN not seeded"));
 
-        createUserIfAbsent(superAdminUsername, superAdminEmail, superAdminPassword, Set.of(superAdminRole, adminRole));
-        createUserIfAbsent(adminUsername,      adminEmail,      adminPassword,      Set.of(adminRole));
-    }
-
-    private void createUserIfAbsent(String username, String email, String rawPassword, Set<Role> roles) {
-        if (userRepository.existsByUsername(username)) {
-            log.debug("User '{}' already exists — skipping seed", username);
-            return;
-        }
         userRepository.save(User.builder()
                 .username(username)
                 .email(email)
-                .password(passwordEncoder.encode(rawPassword))
+                .password(passwordEncoder.encode(password))
                 .enabled(true)
                 .accountNonLocked(true)
-                .roles(roles)
+                .roles(Set.of(superAdminRole, adminRole))
                 .build());
-        log.info("Seeded user: {} ({})", username, email);
+
+        log.info(
+                "================================================================\n" +
+                        "  Initial SUPER_ADMIN created: {}\n" +
+                        "  Remove INITIAL_SUPERADMIN_USERNAME and INITIAL_SUPERADMIN_PASSWORD\n" +
+                        "  from your environment variables after your first login.\n" +
+                        "================================================================",
+                username
+        );
     }
 
-    private static String env(String key, String defaultValue) {
-        String value = System.getenv(key);
-        return (value == null || value.isBlank()) ? defaultValue : value;
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 }
