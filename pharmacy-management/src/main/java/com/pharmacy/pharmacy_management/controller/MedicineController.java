@@ -287,6 +287,23 @@ public class MedicineController {
         // Return 200 OK with success message
         return ResponseEntity.ok(ApiResponse.success("Medicine updated successfully", response));
     }
+    /**
+     * Check whether a drug name already exists and what action is needed.
+     * Called by the frontend BEFORE submitting the add-medicine form.
+     * Returns: NO_MATCH | EXACT_MATCH | NAME_EXISTS
+     */
+    @GetMapping("/batch-check")
+    @Operation(summary = "Check for duplicate drug name before adding",
+            description = "Returns batch status: NO_MATCH, EXACT_MATCH, or NAME_EXISTS")
+    public ResponseEntity<ApiResponse<com.pharmacy.pharmacy_management.dto.BatchCheckResponseDTO>> checkBatch(
+            @RequestParam String name,
+            @RequestParam java.math.BigDecimal price,
+            @RequestParam String expiryDate) {
+
+        java.time.LocalDate expiry = java.time.LocalDate.parse(expiryDate);
+        return ResponseEntity.ok(
+                ApiResponse.success(medicineService.checkBatch(name, price, expiry)));
+    }
 
     /**
      * Delete a medicine from the inventory.
