@@ -111,6 +111,13 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
     @Query("SELECT m FROM Medicine m WHERE m.quantity <= m.lowStockThreshold")
     List<Medicine> findLowStockMedicines();
 
+    List<Medicine> findByNameIgnoreCaseOrderByBatchLabelAsc(String name);
+
+    boolean existsByNameIgnoreCase(String name);
+
+    @Query("SELECT m FROM Medicine m WHERE LOWER(m.name) = LOWER(:name) AND m.price = :price AND m.expiryDate = :expiryDate")
+    java.util.Optional<Medicine> findExactBatch(String name, java.math.BigDecimal price, java.time.LocalDate expiryDate);
+
     /**
      * Find all medicines that are expiring soon.
      * 

@@ -129,9 +129,11 @@ public class Medicine {
     @Column(name = "manufacturer", length = 255)
     private String manufacturer;
 
+    @Column(name = "batch_label", length = 10)
+    private String batchLabel; // A, B, C, AA, AB...
+
     @Column(length = 20)
     private String category; // EYEDROP, TABLET, INJECTION, SYRUP
-
 
     /**
      * Timestamp when this medicine record was created.
