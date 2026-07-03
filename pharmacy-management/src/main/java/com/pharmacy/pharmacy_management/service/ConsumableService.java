@@ -134,6 +134,24 @@ public class ConsumableService {
                 .map(this::toUsageDTO).collect(Collectors.toList());
     }
 
+    /**
+     * Delete a usage log entry.
+     *
+     * Restores the previously deducted quantity back onto the consumable's
+     * stock before removing the log row, so correcting a mis-recorded usage
+     * doesn't leave stock permanently short.
+     */
+    public void deleteUsage(Long usageId) {
+        ConsumableUsage usage = usageRepo.findById(usageId)
+                .orElseThrow(() -> new RuntimeException("Usage entry not found with id: " + usageId));
+
+        Consumable consumable = usage.getConsumable();
+        consumable.setQuantityInStock(consumable.getQuantityInStock() + usage.getQuantityUsed());
+        consumableRepo.save(consumable);
+
+        usageRepo.delete(usage);
+    }
+
     // ── Validation ────────────────────────────────────────────────────────────
 
     private void validateLinkedEntity(ConsumableUsageRequestDTO dto) {

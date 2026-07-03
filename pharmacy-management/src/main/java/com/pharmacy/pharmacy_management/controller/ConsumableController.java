@@ -46,12 +46,14 @@ public class ConsumableController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<ConsumableResponseDTO>> update(
             @PathVariable Long id, @Valid @RequestBody ConsumableRequestDTO dto) {
         return ResponseEntity.ok(ApiResponse.success("Consumable updated.", service.update(id, dto)));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Consumable deleted.", null));
@@ -78,5 +80,13 @@ public class ConsumableController {
     public ResponseEntity<ApiResponse<List<ConsumableUsageResponseDTO>>> getUsageByConsumable(
             @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(service.getUsageByConsumable(id)));
+    }
+
+    @DeleteMapping("/usage/{usageId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Delete a usage log entry — restores the deducted stock")
+    public ResponseEntity<ApiResponse<Void>> deleteUsage(@PathVariable Long usageId) {
+        service.deleteUsage(usageId);
+        return ResponseEntity.ok(ApiResponse.success("Usage entry deleted.", null));
     }
 }
