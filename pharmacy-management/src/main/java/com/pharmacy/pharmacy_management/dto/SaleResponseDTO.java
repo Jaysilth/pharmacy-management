@@ -18,6 +18,9 @@ public class SaleResponseDTO {
     private String paymentMethod;
     private String notes;
     private BigDecimal grandTotal;
+    private String discountType;
+    private BigDecimal discountValue;
+    private BigDecimal discountAmount;
     private List<SaleItemResponseDTO> items;
     private LocalDateTime createdAt;
 

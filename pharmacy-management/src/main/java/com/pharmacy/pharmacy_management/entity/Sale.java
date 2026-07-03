@@ -40,6 +40,15 @@ public class Sale {
     @Column(name = "grand_total", precision = 10, scale = 2)
     private BigDecimal grandTotal;
 
+    @Column(name = "discount_type", length = 10)
+    private String discountType;
+
+    @Column(name = "discount_value", precision = 10, scale = 2)
+    private BigDecimal discountValue;
+
+    @Column(name = "discount_amount", precision = 10, scale = 2)
+    private BigDecimal discountAmount;
+
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<SaleItem> items = new ArrayList<>();

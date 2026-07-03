@@ -53,8 +53,21 @@ public class SaleService {
             grandTotal = grandTotal.add(saleItem.getSubtotal());
         }
 
-        sale.setGrandTotal(grandTotal);
-        sale.setTotalPrice(grandTotal);
+        if (request.getDiscountType() != null && request.getDiscountAmount() != null) {
+            sale.setDiscountType(request.getDiscountType());
+            sale.setDiscountValue(request.getDiscountValue());
+            sale.setDiscountAmount(request.getDiscountAmount());
+            
+            BigDecimal finalTotal = grandTotal.subtract(request.getDiscountAmount());
+            if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
+                finalTotal = BigDecimal.ZERO;
+            }
+            sale.setGrandTotal(finalTotal);
+            sale.setTotalPrice(finalTotal);
+        } else {
+            sale.setGrandTotal(grandTotal);
+            sale.setTotalPrice(grandTotal);
+        }
 
         return mapToResponseDTO(saleRepository.save(sale));
     }
@@ -237,6 +250,9 @@ public class SaleService {
                         .id(sale.getMedicine().getId()).name(sale.getMedicine().getName())
                         .manufacturer(sale.getMedicine().getManufacturer()).build() : null)
                 .quantity(sale.getQuantity()).unitPrice(sale.getUnitPrice()).totalPrice(sale.getTotalPrice())
+                .discountType(sale.getDiscountType())
+                .discountValue(sale.getDiscountValue())
+                .discountAmount(sale.getDiscountAmount())
                 .build();
     }
 
