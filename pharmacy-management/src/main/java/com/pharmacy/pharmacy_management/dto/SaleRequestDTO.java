@@ -19,6 +19,10 @@ public class SaleRequestDTO {
 
     private String notes;
 
+    private String discountType;
+    private BigDecimal discountValue;
+    private BigDecimal discountAmount;
+
     @NotEmpty(message = "At least one item is required")
     private List<SaleItemInput> items;
 
