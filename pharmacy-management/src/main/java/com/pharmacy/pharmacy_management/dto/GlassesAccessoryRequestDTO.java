@@ -11,8 +11,8 @@ public class GlassesAccessoryRequestDTO {
     private String name;
 
     @NotBlank(message = "Accessory type is required")
-    @Pattern(regexp = "^(ROPE_THIN|ROPE_FAT|CASE_PLASTIC|CASE_WOODEN)$",
-            message = "Type must be: ROPE_THIN, ROPE_FAT, CASE_PLASTIC, or CASE_WOODEN")
+    @Pattern(regexp = "^(ROPE_THIN|ROPE_FAT|CASE_PLASTIC|CASE_WOODEN|CASE_PURSE|OTHER)$",
+            message = "Type must be: ROPE_THIN, ROPE_FAT, CASE_PLASTIC, CASE_WOODEN, CASE_PURSE, or OTHER")
     private String accessoryType;
 
     @NotNull @DecimalMin(value = "0.0", inclusive = false)

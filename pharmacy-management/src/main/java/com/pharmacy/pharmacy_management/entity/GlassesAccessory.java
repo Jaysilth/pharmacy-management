@@ -18,7 +18,7 @@ public class GlassesAccessory {
     private String name;
 
     /**
-     * ROPE_THIN, ROPE_FAT, CASE_PLASTIC, CASE_WOODEN
+     * ROPE_THIN, ROPE_FAT, CASE_PLASTIC, CASE_WOODEN, CASE_PURSE, OTHER
      */
     @Column(name = "accessory_type", nullable = false, length = 30)
     private String accessoryType;
