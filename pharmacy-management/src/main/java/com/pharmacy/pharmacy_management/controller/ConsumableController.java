@@ -46,14 +46,14 @@ public class ConsumableController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
     public ResponseEntity<ApiResponse<ConsumableResponseDTO>> update(
             @PathVariable Long id, @Valid @RequestBody ConsumableRequestDTO dto) {
         return ResponseEntity.ok(ApiResponse.success("Consumable updated.", service.update(id, dto)));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Consumable deleted.", null));
