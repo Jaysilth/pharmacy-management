@@ -28,8 +28,21 @@ public class JwtTokenProvider {
 
     private Key signingKey;
 
+    // SECURITY FIX: previously any jwt.secret value was accepted, including
+    // short/weak ones — a short HS256 secret can be brute-forced offline
+    // to forge valid tokens. Fail fast at startup instead of running with
+    // a signing key that doesn't provide real security.
+    private static final int MIN_SECRET_BYTES = 32; // 256 bits
+
     @PostConstruct
     public void init() {
+        if (jwtSecret == null || jwtSecret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "jwt.secret is missing or too short. It must be at least " + MIN_SECRET_BYTES +
+                            " bytes (256 bits) of high-entropy data for HS256. " +
+                            "Generate one with e.g. `openssl rand -base64 48` and set it as the JWT_SECRET " +
+                            "environment variable.");
+        }
         signingKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
