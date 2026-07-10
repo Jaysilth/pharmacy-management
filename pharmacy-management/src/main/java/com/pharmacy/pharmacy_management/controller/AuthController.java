@@ -5,13 +5,16 @@ import com.pharmacy.pharmacy_management.dto.ApiResponse;
 import com.pharmacy.pharmacy_management.dto.JwtResponseDTO;
 import com.pharmacy.pharmacy_management.dto.LoginRequestDTO;
 import com.pharmacy.pharmacy_management.dto.UserResponseDTO;
+import com.pharmacy.pharmacy_management.security.LoginAttemptService;
 import com.pharmacy.pharmacy_management.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -25,17 +28,36 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider      jwtTokenProvider;
     private final UserService           userService;
+    private final LoginAttemptService   loginAttemptService;
 
     @PostMapping("/login")
     @Operation(summary = "Login with username or email + password", security = {})
     public ResponseEntity<ApiResponse<JwtResponseDTO>> login(
             @Valid @RequestBody LoginRequestDTO loginRequest) {
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(),
-                        loginRequest.getPassword())
-        );
+        String identifier = loginRequest.getUsername();
+
+        // SECURITY FIX: brute-force / credential-stuffing guard.
+        // Was: unlimited login attempts against /api/auth/login.
+        if (loginAttemptService.isLocked(identifier)) {
+            long secondsRemaining = loginAttemptService.getLockSecondsRemaining(identifier);
+            throw new LockedException(
+                    "Too many failed login attempts. Try again in " + secondsRemaining + " seconds.");
+        }
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUsername(),
+                            loginRequest.getPassword())
+            );
+        } catch (AuthenticationException ex) {
+            loginAttemptService.recordFailure(identifier);
+            throw ex;
+        }
+
+        loginAttemptService.recordSuccess(identifier);
 
         String jwt = jwtTokenProvider.generateToken(authentication);
 
