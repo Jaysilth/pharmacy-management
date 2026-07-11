@@ -39,6 +39,16 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    // Bad input (e.g. an invalid "period" query param) should be a 400, not
+    // fall through to the generic RuntimeException handler as a 500 — the
+    // message here is one we wrote ourselves (safe to show), not internal
+    // exception detail.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
         // Route "not found" messages to 404 instead of 500.

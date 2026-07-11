@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -57,7 +58,7 @@ public class SaleService {
             sale.setDiscountType(request.getDiscountType());
             sale.setDiscountValue(request.getDiscountValue());
             sale.setDiscountAmount(request.getDiscountAmount());
-            
+
             BigDecimal finalTotal = grandTotal.subtract(request.getDiscountAmount());
             if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
                 finalTotal = BigDecimal.ZERO;
@@ -217,6 +218,100 @@ public class SaleService {
         return totals.entrySet().stream()
                 .map(e -> SalesByDayDTO.builder().date(e.getKey().toString()).totalRevenue(e.getValue()).build())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Revenue grouped into calendar-aligned buckets.
+     *
+     * "week" = ISO calendar week, Monday–Sunday. "month" = calendar month.
+     * "year" = calendar year. Buckets are calendar-aligned, not rolling
+     * windows — e.g. "month" always starts on the 1st, not "30 days ago."
+     *
+     * count = how many buckets to return, most recent last (oldest first
+     * in the returned list), same ordering convention as getSalesByDay.
+     */
+    public List<RevenueByPeriodDTO> getRevenueByPeriod(String period, int count) {
+        if (count < 1) {
+            throw new IllegalArgumentException("count must be at least 1");
+        }
+
+        LocalDate today = LocalDate.now();
+        List<LocalDate> bucketStarts = new ArrayList<>();
+
+        switch (period) {
+            case "week" -> {
+                LocalDate thisWeekStart = sundayWeekStart(today);
+                for (int i = count - 1; i >= 0; i--) bucketStarts.add(thisWeekStart.minusWeeks(i));
+            }
+            case "month" -> {
+                LocalDate thisMonthStart = today.withDayOfMonth(1);
+                for (int i = count - 1; i >= 0; i--) bucketStarts.add(thisMonthStart.minusMonths(i));
+            }
+            case "year" -> {
+                LocalDate thisYearStart = today.withDayOfYear(1);
+                for (int i = count - 1; i >= 0; i--) bucketStarts.add(thisYearStart.minusYears(i));
+            }
+            default -> throw new IllegalArgumentException("period must be one of: week, month, year");
+        }
+
+        LocalDate rangeStart = bucketStarts.get(0);
+
+        Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
+        bucketStarts.forEach(b -> totals.put(b, BigDecimal.ZERO));
+
+        saleRepository.findSalesByDateRange(rangeStart.atStartOfDay(), today.atTime(LocalTime.MAX))
+                .forEach(s -> {
+                    LocalDate bucketKey = bucketStartFor(s.getCreatedAt().toLocalDate(), period);
+                    BigDecimal amt = effectiveTotal(s);
+                    totals.computeIfPresent(bucketKey, (k, v) -> v.add(amt));
+                });
+
+        return bucketStarts.stream()
+                .map(b -> RevenueByPeriodDTO.builder()
+                        .label(formatPeriodLabel(b, period))
+                        .periodStart(b.toString())
+                        .periodEnd(bucketEndFor(b, period).toString())
+                        .totalRevenue(totals.get(b))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // NOTE: date.with(DayOfWeek.SUNDAY) is NOT what we want here — that
+    // moves within the ISO Monday–Sunday week and lands on the *last* day
+    // of the current week, not the first day of a Sunday-start week. This
+    // computes the actual Sunday that begins the Sunday–Saturday week
+    // containing `date`.
+    private LocalDate sundayWeekStart(LocalDate date) {
+        int isoDayOfWeek = date.getDayOfWeek().getValue(); // Mon=1 ... Sun=7
+        int daysSinceSunday = isoDayOfWeek % 7;             // Sun=0, Mon=1, ... Sat=6
+        return date.minusDays(daysSinceSunday);
+    }
+
+    private LocalDate bucketStartFor(LocalDate date, String period) {
+        return switch (period) {
+            case "week"  -> sundayWeekStart(date);
+            case "month" -> date.withDayOfMonth(1);
+            case "year"  -> date.withDayOfYear(1);
+            default -> date;
+        };
+    }
+
+    private LocalDate bucketEndFor(LocalDate bucketStart, String period) {
+        return switch (period) {
+            case "week"  -> bucketStart.plusDays(6);
+            case "month" -> bucketStart.withDayOfMonth(bucketStart.lengthOfMonth());
+            case "year"  -> bucketStart.withDayOfYear(bucketStart.lengthOfYear());
+            default -> bucketStart;
+        };
+    }
+
+    private String formatPeriodLabel(LocalDate bucketStart, String period) {
+        return switch (period) {
+            case "week"  -> "Week of " + bucketStart.format(DateTimeFormatter.ofPattern("MMM d"));
+            case "month" -> bucketStart.format(DateTimeFormatter.ofPattern("MMM yyyy"));
+            case "year"  -> String.valueOf(bucketStart.getYear());
+            default -> bucketStart.toString();
+        };
     }
 
     // ── Mapping ───────────────────────────────────────────────────────────────
