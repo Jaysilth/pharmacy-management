@@ -13,8 +13,11 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
@@ -54,6 +57,7 @@ public class JwtTokenProvider {
                 .collect(Collectors.toList());
 
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())   // jti — SECURITY FIX: enables per-token revocation on logout
                 .setSubject(authentication.getName())
                 .claim("roles", roles)
                 .setIssuedAt(new Date())
@@ -63,24 +67,38 @@ public class JwtTokenProvider {
     }
 
     public String getUsernameFromToken(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(signingKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        return parseClaims(token).getSubject();
+    }
 
-        return claims.getSubject();
+    /** The token's unique id — what gets stored in the revocation table, never the raw token itself. */
+    public String getJti(String token) {
+        try {
+            return parseClaims(token).getId();
+        } catch (JwtException | IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    public LocalDateTime getExpiry(String token) {
+        Date exp = parseClaims(token).getExpiration();
+        return LocalDateTime.ofInstant(exp.toInstant(), ZoneId.systemDefault());
     }
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(signingKey)
-                    .build()
-                    .parseClaimsJws(token);
+            parseClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException ex) {
             return false;
         }
     }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(signingKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
 }
+

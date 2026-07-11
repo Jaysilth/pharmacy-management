@@ -1,5 +1,6 @@
 package com.pharmacy.pharmacy_management.config;
 
+import com.pharmacy.pharmacy_management.service.TokenRevocationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,12 +15,16 @@ import java.io.IOException;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtTokenProvider jwtTokenProvider;
-    private final UserDetailsService userDetailsService;
+    private final JwtTokenProvider        jwtTokenProvider;
+    private final UserDetailsService      userDetailsService;
+    private final TokenRevocationService  tokenRevocationService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
+                                   UserDetailsService userDetailsService,
+                                   TokenRevocationService tokenRevocationService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userDetailsService = userDetailsService;
+        this.tokenRevocationService = tokenRevocationService;
     }
 
     @Override
@@ -28,7 +33,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String jwt = parseJwt(request);
 
-        if (jwt != null && jwtTokenProvider.validateToken(jwt) && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (jwt != null
+                && jwtTokenProvider.validateToken(jwt)
+                // Security fix (OWASP A07) — signature+expiry alone isn't enough; a signature-valid
+                // token that was explicitly logged out must still be rejected.
+                && !tokenRevocationService.isRevoked(jwtTokenProvider.getJti(jwt))
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
             String username = jwtTokenProvider.getUsernameFromToken(jwt);
             var userDetails = userDetailsService.loadUserByUsername(username);
             var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
