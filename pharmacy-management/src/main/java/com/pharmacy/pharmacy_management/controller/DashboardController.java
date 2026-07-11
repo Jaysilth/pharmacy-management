@@ -2,6 +2,7 @@ package com.pharmacy.pharmacy_management.controller;
 
 import com.pharmacy.pharmacy_management.dto.ApiResponse;
 import com.pharmacy.pharmacy_management.dto.DashboardSummaryDTO;
+import com.pharmacy.pharmacy_management.dto.RevenueByPeriodDTO;
 import com.pharmacy.pharmacy_management.dto.SalesByDayDTO;
 import com.pharmacy.pharmacy_management.service.MedicineService;
 import com.pharmacy.pharmacy_management.service.SaleService;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -45,5 +47,19 @@ public class DashboardController {
     public ResponseEntity<ApiResponse<List<SalesByDayDTO>>> getSalesByDay() {
         List<SalesByDayDTO> salesByDay = saleService.getSalesByDay(7);
         return ResponseEntity.ok(ApiResponse.success("Sales by day retrieved successfully", salesByDay));
+    }
+
+    @GetMapping("/revenue")
+    @Operation(
+            summary = "Get revenue by period",
+            description = "Retrieve revenue totals grouped into calendar-aligned week/month/year buckets. " +
+                    "period must be one of: week, month, year. count is how many buckets to return " +
+                    "(default 12), oldest first."
+    )
+    public ResponseEntity<ApiResponse<List<RevenueByPeriodDTO>>> getRevenueByPeriod(
+            @RequestParam String period,
+            @RequestParam(defaultValue = "12") int count) {
+        List<RevenueByPeriodDTO> revenue = saleService.getRevenueByPeriod(period, count);
+        return ResponseEntity.ok(ApiResponse.success("Revenue by period retrieved successfully", revenue));
     }
 }
