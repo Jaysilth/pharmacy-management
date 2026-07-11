@@ -64,7 +64,7 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
 
         // Wrap so we can read the body (for the attempted username) without consuming
         // the stream the actual controller needs afterward.
-        ContentCachingRequestWrapper wrapped = new ContentCachingRequestWrapper(request);
+        ContentCachingRequestWrapper wrapped = new ContentCachingRequestWrapper(request, 4096);
         wrapped.getInputStream().readAllBytes(); // triggers caching
         String username = extractUsername(wrapped);
         String ip = clientIp(request);
