@@ -11,7 +11,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -62,10 +61,14 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Wrap so we can read the body (for the attempted username) without consuming
-        // the stream the actual controller needs afterward.
-        ContentCachingRequestWrapper wrapped = new ContentCachingRequestWrapper(request, 4096);
-        wrapped.getInputStream().readAllBytes(); // triggers caching
+        // BUG FIX: previously used ContentCachingRequestWrapper and drained
+        // the stream here with readAllBytes() — that left nothing for the
+        // controller's @RequestBody to read afterward, so every login
+        // failed with an empty body regardless of the credentials sent.
+        // CachedBodyHttpServletRequest replays the same bytes on every
+        // getInputStream() call, so both this filter and the controller
+        // can read the full body independently.
+        CachedBodyHttpServletRequest wrapped = new CachedBodyHttpServletRequest(request);
         String username = extractUsername(wrapped);
         String ip = clientIp(request);
         String key = ip + ":" + (username == null ? "unknown" : username.toLowerCase());
@@ -94,9 +97,9 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
         filterChain.doFilter(wrapped, response);
     }
 
-    private String extractUsername(ContentCachingRequestWrapper wrapped) {
+    private String extractUsername(CachedBodyHttpServletRequest wrapped) {
         try {
-            byte[] body = wrapped.getContentAsByteArray();
+            byte[] body = StreamUtils.copyToByteArray(wrapped.getInputStream());
             if (body.length == 0) return null;
             JsonNode node = objectMapper.readTree(new String(body, StandardCharsets.UTF_8));
             JsonNode usernameNode = node.get("username");
