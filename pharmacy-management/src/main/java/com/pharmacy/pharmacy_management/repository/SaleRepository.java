@@ -7,32 +7,35 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
 public interface SaleRepository extends JpaRepository<Sale, Long> {
 
+    // ── Listing / ordering — reflects when the row was actually entered ──
     List<Sale> findAllByOrderByCreatedAtDesc();
+    List<Sale> findTop5ByOrderByCreatedAtDesc();
 
-    @Query("SELECT s FROM Sale s WHERE s.createdAt BETWEEN :startDate AND :endDate ORDER BY s.createdAt DESC")
-    List<Sale> findSalesByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+    // ── Revenue & reporting — reflects the business-effective sale date,
+    //    so a backdated sale counts toward the period it actually happened
+    //    in, not the day it was entered ──
+    @Query("SELECT s FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate ORDER BY s.saleDate DESC")
+    List<Sale> findSalesBySaleDateRange(LocalDate startDate, LocalDate endDate);
 
     @Query("SELECT SUM(s.totalPrice) FROM Sale s")
     BigDecimal getTotalRevenue();
 
-    @Query("SELECT SUM(s.totalPrice) FROM Sale s WHERE s.createdAt BETWEEN :startDate AND :endDate")
-    BigDecimal getTotalRevenueByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+    @Query("SELECT SUM(s.totalPrice) FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate")
+    BigDecimal getTotalRevenueBySaleDateRange(LocalDate startDate, LocalDate endDate);
+
+    long countBySaleDateBetween(LocalDate startDate, LocalDate endDate);
 
     @Query("SELECT COUNT(s) FROM Sale s WHERE s.medicine.id = :medicineId")
     Long countSalesByMedicineId(Long medicineId);
 
     @Query("SELECT s.medicine.id, s.medicine.name, COUNT(s) as saleCount FROM Sale s GROUP BY s.medicine.id, s.medicine.name ORDER BY saleCount DESC")
     List<Object[]> findTopSellingMedicines();
-
-    long countByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
-
-    List<Sale> findTop5ByOrderByCreatedAtDesc();
 
     /**
      * Delete all sales associated with a specific medicine.

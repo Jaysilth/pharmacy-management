@@ -2,6 +2,7 @@ package com.pharmacy.pharmacy_management.dto;
 
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,6 +24,9 @@ public class SaleResponseDTO {
     private BigDecimal discountAmount;
     private List<SaleItemResponseDTO> items;
     private LocalDateTime createdAt;
+    // Business-effective date. Equal to createdAt's date for a normal sale;
+    // different from it when the sale was backdated.
+    private LocalDate saleDate;
 
     // ── Legacy fields — populated for old single-medicine sales ──
     private MedicineInfo medicine;
