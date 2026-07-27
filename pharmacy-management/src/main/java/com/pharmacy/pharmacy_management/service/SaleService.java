@@ -6,13 +6,14 @@ import com.pharmacy.pharmacy_management.exception.InsufficientStockException;
 import com.pharmacy.pharmacy_management.exception.MedicineNotFoundException;
 import com.pharmacy.pharmacy_management.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,6 +22,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class SaleService {
+
+    private static final String ROLE_SUPER_ADMIN = "ROLE_SUPER_ADMIN";
 
     private final SaleRepository              saleRepository;
     private final MedicineRepository          medicineRepository;
@@ -70,7 +73,62 @@ public class SaleService {
             sale.setTotalPrice(grandTotal);
         }
 
+        applyBackdatingIfRequested(sale, request.getSaleDate(), request.getBackdateReason());
+
         return mapToResponseDTO(saleRepository.save(sale));
+    }
+
+    /**
+     * How far back a SUPER_ADMIN can backdate a forgotten sale. Wider than
+     * "current month" on purpose, so a sale missed in the last days of a
+     * month can still be fixed early the next month — but bounded, since
+     * an unbounded window means anyone with SUPER_ADMIN can restate any
+     * period's revenue at will with no way to catch it after the fact.
+     */
+    private static final int BACKDATE_WINDOW_DAYS = 90;
+
+    /**
+     * Emergency backdating — for a sale that genuinely happened but was
+     * never entered on the day. SUPER_ADMIN only, bounded to the last
+     * {@link #BACKDATE_WINDOW_DAYS} days, and requires a written reason.
+     * createdAt is left untouched — it always reflects when the row was
+     * actually inserted. saleDate carries the business-effective date and
+     * is what every revenue/reporting query reads off, so a backdated sale
+     * correctly lands in the period it actually happened in.
+     */
+    private void applyBackdatingIfRequested(Sale sale, LocalDate saleDate, String reason) {
+        if (saleDate == null) {
+            return; // normal sale — saleDate defaults to today via @PrePersist
+        }
+
+        boolean isSuperAdmin = SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(ROLE_SUPER_ADMIN));
+        if (!isSuperAdmin) {
+            throw new AccessDeniedException("Only a SUPER_ADMIN can backdate a sale.");
+        }
+
+        LocalDate today = LocalDate.now();
+        if (saleDate.isAfter(today)) {
+            throw new IllegalArgumentException("Sale date cannot be in the future.");
+        }
+        if (saleDate.isBefore(today.minusDays(BACKDATE_WINDOW_DAYS))) {
+            throw new IllegalArgumentException(
+                    "A sale can only be backdated within the last " + BACKDATE_WINDOW_DAYS
+                            + " days. For anything older, correct it manually or note it as an adjustment.");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A reason is required to backdate a sale.");
+        }
+
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        sale.setSaleDate(saleDate);
+
+        String auditNote = "[Backdated by " + currentUsername + " on " + today
+                + " — reason: " + reason.trim() + "]";
+        sale.setNotes(sale.getNotes() != null && !sale.getNotes().isBlank()
+                ? sale.getNotes() + " " + auditNote
+                : auditNote);
     }
 
     private SaleItem resolveItem(Sale sale, SaleRequestDTO.SaleItemInput input) {
@@ -184,16 +242,14 @@ public class SaleService {
 
     @Transactional(readOnly = true)
     public int getTotalSalesToday() {
-        LocalDateTime start = LocalDate.now().atStartOfDay();
-        LocalDateTime end   = LocalDate.now().atTime(LocalTime.MAX);
-        return (int) saleRepository.countByCreatedAtBetween(start, end);
+        LocalDate today = LocalDate.now();
+        return (int) saleRepository.countBySaleDateBetween(today, today);
     }
 
     @Transactional(readOnly = true)
     public BigDecimal getTotalRevenueToday() {
-        LocalDateTime start = LocalDate.now().atStartOfDay();
-        LocalDateTime end   = LocalDate.now().atTime(LocalTime.MAX);
-        BigDecimal rev = saleRepository.getTotalRevenueByDateRange(start, end);
+        LocalDate today = LocalDate.now();
+        BigDecimal rev = saleRepository.getTotalRevenueBySaleDateRange(today, today);
         return rev != null ? rev : BigDecimal.ZERO;
     }
 
@@ -209,9 +265,9 @@ public class SaleService {
         LocalDate start = end.minusDays(days - 1);
         Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
         for (int i = 0; i < days; i++) totals.put(start.plusDays(i), BigDecimal.ZERO);
-        saleRepository.findSalesByDateRange(start.atStartOfDay(), end.atTime(LocalTime.MAX))
+        saleRepository.findSalesBySaleDateRange(start, end)
                 .forEach(s -> {
-                    LocalDate d = s.getCreatedAt().toLocalDate();
+                    LocalDate d = s.getSaleDate();
                     BigDecimal amt = effectiveTotal(s);
                     totals.compute(d, (k, v) -> v == null ? amt : v.add(amt));
                 });
@@ -259,9 +315,9 @@ public class SaleService {
         Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
         bucketStarts.forEach(b -> totals.put(b, BigDecimal.ZERO));
 
-        saleRepository.findSalesByDateRange(rangeStart.atStartOfDay(), today.atTime(LocalTime.MAX))
+        saleRepository.findSalesBySaleDateRange(rangeStart, today)
                 .forEach(s -> {
-                    LocalDate bucketKey = bucketStartFor(s.getCreatedAt().toLocalDate(), period);
+                    LocalDate bucketKey = bucketStartFor(s.getSaleDate(), period);
                     BigDecimal amt = effectiveTotal(s);
                     totals.computeIfPresent(bucketKey, (k, v) -> v.add(amt));
                 });
@@ -341,6 +397,7 @@ public class SaleService {
                 .customerName(sale.getCustomerName()).customerPhone(sale.getCustomerPhone())
                 .paymentMethod(sale.getPaymentMethod()).notes(sale.getNotes())
                 .grandTotal(effectiveTotal(sale)).items(itemDTOs).createdAt(sale.getCreatedAt())
+                .saleDate(sale.getSaleDate())
                 .medicine(sale.getMedicine() != null ? SaleResponseDTO.MedicineInfo.builder()
                         .id(sale.getMedicine().getId()).name(sale.getMedicine().getName())
                         .manufacturer(sale.getMedicine().getManufacturer()).build() : null)

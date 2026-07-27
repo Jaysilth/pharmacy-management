@@ -71,8 +71,19 @@ public class Sale {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    // Business-effective date of the sale. Defaults to the day it was
+    // entered. SUPER_ADMIN can set this explicitly when backdating a
+    // forgotten sale — createdAt is left untouched in that case, so it
+    // always tells the truth about when the row was actually inserted.
+    // All revenue/reporting reads off this field, not createdAt.
+    @Column(name = "sale_date")
+    private java.time.LocalDate saleDate;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        if (saleDate == null) {
+            saleDate = createdAt.toLocalDate();
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.pharmacy.pharmacy_management.dto;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -22,6 +23,16 @@ public class SaleRequestDTO {
     private String discountType;
     private BigDecimal discountValue;
     private BigDecimal discountAmount;
+
+    // Optional — for backdating a sale that was forgotten on the day it
+    // happened. SUPER_ADMIN only; server-side validated to fall within the
+    // configured backdate window. Omit for a normal, present-moment sale.
+    private LocalDate saleDate;
+
+    // Required whenever saleDate is set — a one-line justification stored
+    // in the audit note. The wider the backdate window, the more this
+    // matters; not optional.
+    private String backdateReason;
 
     @NotEmpty(message = "At least one item is required")
     private List<SaleItemInput> items;
