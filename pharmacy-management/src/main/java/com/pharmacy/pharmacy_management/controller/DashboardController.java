@@ -1,6 +1,7 @@
 package com.pharmacy.pharmacy_management.controller;
 
 import com.pharmacy.pharmacy_management.dto.ApiResponse;
+import com.pharmacy.pharmacy_management.dto.CategorySummaryDTO;
 import com.pharmacy.pharmacy_management.dto.DashboardSummaryDTO;
 import com.pharmacy.pharmacy_management.dto.RevenueByPeriodDTO;
 import com.pharmacy.pharmacy_management.dto.SalesByDayDTO;
@@ -61,5 +62,19 @@ public class DashboardController {
             @RequestParam(defaultValue = "12") int count) {
         List<RevenueByPeriodDTO> revenue = saleService.getRevenueByPeriod(period, count);
         return ResponseEntity.ok(ApiResponse.success("Revenue by period retrieved successfully", revenue));
+    }
+
+    @GetMapping("/category-summary")
+    @Operation(
+            summary = "Get weekly category summary",
+            description = "Retrieve, per Sunday–Saturday week, a count of line items sold/performed per " +
+                    "category (MEDICINE, GLASSES, GLASSES_ACCESSORY, GLASSES_REPAIR, SURGERY, " +
+                    "CLINIC_VISIT, PROCEDURE, LAB_TEST). weeks is how many weeks to return " +
+                    "(default 12), oldest first."
+    )
+    public ResponseEntity<ApiResponse<List<CategorySummaryDTO>>> getCategorySummaryByWeek(
+            @RequestParam(defaultValue = "12") int weeks) {
+        List<CategorySummaryDTO> summary = saleService.getCategorySummaryByWeek(weeks);
+        return ResponseEntity.ok(ApiResponse.success("Category summary retrieved successfully", summary));
     }
 }
