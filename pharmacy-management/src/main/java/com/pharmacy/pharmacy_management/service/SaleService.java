@@ -279,9 +279,9 @@ public class SaleService {
     /**
      * Revenue grouped into calendar-aligned buckets.
      *
-     * "week" = ISO calendar week, Monday–Sunday. "month" = calendar month.
-     * "year" = calendar year. Buckets are calendar-aligned, not rolling
-     * windows — e.g. "month" always starts on the 1st, not "30 days ago."
+     * "week" = Sunday–Saturday. "month" = calendar month. "year" = calendar
+     * year. Buckets are calendar-aligned, not rolling windows — e.g.
+     * "month" always starts on the 1st, not "30 days ago."
      *
      * count = how many buckets to return, most recent last (oldest first
      * in the returned list), same ordering convention as getSalesByDay.
@@ -368,6 +368,73 @@ public class SaleService {
             case "year"  -> String.valueOf(bucketStart.getYear());
             default -> bucketStart.toString();
         };
+    }
+
+    // ── Category summary ─────────────────────────────────────────────────────
+
+    /**
+     * Weekly count of line items per category (MEDICINE, GLASSES, SURGERY,
+     * etc.) — "how many of each tab was sold/done." Counts line items, not
+     * summed quantity: a surgery/procedure/repair line is always qty-1
+     * conceptually, so counting rows is the one definition that means the
+     * same thing across all 8 sellable categories.
+     *
+     * Buckets by saleDate, same as getRevenueByPeriod — a backdated sale
+     * lands in the week it actually happened in, not the week it was typed
+     * into the system.
+     *
+     * weeks = how many Sunday–Saturday buckets to return, oldest first.
+     */
+    public List<CategorySummaryDTO> getCategorySummaryByWeek(int weeks) {
+        if (weeks < 1) {
+            throw new IllegalArgumentException("weeks must be at least 1");
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate thisWeekStart = sundayWeekStart(today);
+        List<LocalDate> bucketStarts = new ArrayList<>();
+        for (int i = weeks - 1; i >= 0; i--) bucketStarts.add(thisWeekStart.minusWeeks(i));
+
+        LocalDate rangeStart = bucketStarts.get(0);
+
+        Map<LocalDate, Map<String, Long>> counts = new LinkedHashMap<>();
+        bucketStarts.forEach(b -> counts.put(b, new LinkedHashMap<>()));
+
+        saleRepository.findSalesBySaleDateRange(rangeStart, today)
+                .forEach(sale -> {
+                    LocalDate bucketKey = sundayWeekStart(sale.getSaleDate());
+                    Map<String, Long> bucketCounts = counts.get(bucketKey);
+                    if (bucketCounts == null) return; // outside range — shouldn't happen, but be safe
+                    for (String itemType : resolveItemTypes(sale)) {
+                        bucketCounts.merge(itemType, 1L, Long::sum);
+                    }
+                });
+
+        return bucketStarts.stream()
+                .map(b -> CategorySummaryDTO.builder()
+                        .label(formatPeriodLabel(b, "week"))
+                        .periodStart(b.toString())
+                        .periodEnd(bucketEndFor(b, "week").toString())
+                        .counts(counts.get(b))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Mirrors the same fallback rule used in mapToResponseDTO below (prefer
+     * the itemized `items` list, fall back to the legacy single-medicine
+     * fields on Sale for older rows that predate the multi-item cart) —
+     * kept separate since this only needs itemType, not the full DTO shape.
+     */
+    private List<String> resolveItemTypes(Sale sale) {
+        if (sale.getItems() != null && !sale.getItems().isEmpty()) {
+            return sale.getItems().stream()
+                    .map(SaleItem::getItemType)
+                    .collect(Collectors.toList());
+        } else if (sale.getMedicine() != null) {
+            return List.of("MEDICINE");
+        }
+        return List.of();
     }
 
     // ── Mapping ───────────────────────────────────────────────────────────────
