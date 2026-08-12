@@ -5,6 +5,7 @@ import com.pharmacy.pharmacy_management.dto.CategorySummaryDTO;
 import com.pharmacy.pharmacy_management.dto.DashboardSummaryDTO;
 import com.pharmacy.pharmacy_management.dto.RevenueByPeriodDTO;
 import com.pharmacy.pharmacy_management.dto.SalesByDayDTO;
+import com.pharmacy.pharmacy_management.dto.TopItemDTO;
 import com.pharmacy.pharmacy_management.service.MedicineService;
 import com.pharmacy.pharmacy_management.service.SaleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -76,5 +77,18 @@ public class DashboardController {
             @RequestParam(defaultValue = "12") int weeks) {
         List<CategorySummaryDTO> summary = saleService.getCategorySummaryByWeek(weeks);
         return ResponseEntity.ok(ApiResponse.success("Category summary retrieved successfully", summary));
+    }
+
+    @GetMapping("/top-items")
+    @Operation(
+            summary = "Get top items per category",
+            description = "Retrieve, per category (MEDICINE, GLASSES, SURGERY, etc.), the top items by " +
+                    "total quantity sold/performed, all-time. limit is how many top items to return " +
+                    "per category (default 5)."
+    )
+    public ResponseEntity<ApiResponse<List<TopItemDTO>>> getTopItemsByCategory(
+            @RequestParam(defaultValue = "5") int limit) {
+        List<TopItemDTO> topItems = saleService.getTopItemsByCategory(limit);
+        return ResponseEntity.ok(ApiResponse.success("Top items retrieved successfully", topItems));
     }
 }

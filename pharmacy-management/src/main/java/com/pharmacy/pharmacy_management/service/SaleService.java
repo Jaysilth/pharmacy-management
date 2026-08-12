@@ -424,15 +424,98 @@ public class SaleService {
      * Mirrors the same fallback rule used in mapToResponseDTO below (prefer
      * the itemized `items` list, fall back to the legacy single-medicine
      * fields on Sale for older rows that predate the multi-item cart) —
-     * kept separate since this only needs itemType, not the full DTO shape.
+     * built on resolveLineItems so this fallback logic only lives in one
+     * place.
      */
     private List<String> resolveItemTypes(Sale sale) {
+        return resolveLineItems(sale).stream()
+                .map(LineItemView::itemType)
+                .collect(Collectors.toList());
+    }
+
+    // ── Top items per category ───────────────────────────────────────────────
+
+    /**
+     * All-time top-selling/performed items per category — "which drugs sold
+     * most, which surgeries performed most," etc. Ranked by total quantity
+     * (SUM of quantity across every sale-item row for that specific item),
+     * not line-item count: 1 sale of 5 units of the same drug should rank
+     * above 5 separate sales of 1 unit each of a different drug, and it
+     * would be wrong for those two cases to look the same.
+     *
+     * This is deliberately plain aggregation — no AI summarization layer.
+     * If you want narrative text on top of these numbers later, it should
+     * only ever narrate what's already computed here, never recompute or
+     * estimate the figures itself.
+     *
+     * limitPerCategory = how many top items to return per category (e.g. 5
+     * gives you "top 5 drugs, top 5 surgeries, ...").
+     */
+    public List<TopItemDTO> getTopItemsByCategory(int limitPerCategory) {
+        if (limitPerCategory < 1) {
+            throw new IllegalArgumentException("limitPerCategory must be at least 1");
+        }
+
+        record LineKey(String itemType, Long itemId) {}
+
+        class Totals {
+            String itemName;
+            long quantity;
+            BigDecimal revenue = BigDecimal.ZERO;
+        }
+
+        Map<LineKey, Totals> totals = new LinkedHashMap<>();
+
+        for (Sale sale : saleRepository.findAll()) {
+            for (LineItemView line : resolveLineItems(sale)) {
+                LineKey key = new LineKey(line.itemType(), line.itemId());
+                Totals t = totals.computeIfAbsent(key, k -> new Totals());
+                t.itemName = line.itemName();
+                t.quantity += line.quantity();
+                t.revenue = t.revenue.add(line.subtotal());
+            }
+        }
+
+        Map<String, List<TopItemDTO>> byType = new LinkedHashMap<>();
+        totals.forEach((key, t) -> {
+            TopItemDTO dto = TopItemDTO.builder()
+                    .itemType(key.itemType())
+                    .itemId(key.itemId())
+                    .itemName(t.itemName)
+                    .totalQuantity((int) t.quantity)
+                    .totalRevenue(t.revenue)
+                    .build();
+            byType.computeIfAbsent(key.itemType(), k -> new ArrayList<>()).add(dto);
+        });
+
+        List<TopItemDTO> result = new ArrayList<>();
+        for (List<TopItemDTO> items : byType.values()) {
+            items.sort((a, b) -> Integer.compare(b.getTotalQuantity(), a.getTotalQuantity()));
+            result.addAll(items.stream().limit(limitPerCategory).collect(Collectors.toList()));
+        }
+        return result;
+    }
+
+    /** Normalized view of one line, whether it came from SaleItem or a legacy single-medicine Sale. */
+    private record LineItemView(String itemType, Long itemId, String itemName, int quantity, BigDecimal subtotal) {}
+
+    private List<LineItemView> resolveLineItems(Sale sale) {
         if (sale.getItems() != null && !sale.getItems().isEmpty()) {
             return sale.getItems().stream()
-                    .map(SaleItem::getItemType)
+                    .map(si -> new LineItemView(
+                            si.getItemType(),
+                            si.getItemId(),
+                            si.getItemName(),
+                            si.getQuantity() != null ? si.getQuantity() : 1,
+                            si.getSubtotal() != null ? si.getSubtotal() : BigDecimal.ZERO))
                     .collect(Collectors.toList());
         } else if (sale.getMedicine() != null) {
-            return List.of("MEDICINE");
+            return List.of(new LineItemView(
+                    "MEDICINE",
+                    sale.getMedicine().getId(),
+                    sale.getMedicine().getName(),
+                    sale.getQuantity() != null ? sale.getQuantity() : 1,
+                    sale.getTotalPrice() != null ? sale.getTotalPrice() : BigDecimal.ZERO));
         }
         return List.of();
     }
