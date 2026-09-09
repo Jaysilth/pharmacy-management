@@ -1,6 +1,8 @@
 package com.pharmacy.pharmacy_management.exception;
 
 import com.pharmacy.pharmacy_management.dto.ApiResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -15,6 +17,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(MedicineNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleMedicineNotFoundException(MedicineNotFoundException ex) {
@@ -46,14 +50,24 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
-        // Route "not found" messages to 404 instead of 500
+        // Route "not found" messages to 404 instead of 500. These are our own
+        // exceptions with messages we wrote ourselves — safe to show as-is.
         String message = ex.getMessage();
         if (message != null && message.toLowerCase().contains("not found")) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(message));
         }
+
+        // SECURITY FIX: this used to return "An unexpected error occurred: " + message
+        // directly to the client. That's fine for exceptions we threw ourselves, but this
+        // handler also catches anything else that bubbles up as a RuntimeException —
+        // Hibernate/JPA exceptions like DataIntegrityViolationException in particular,
+        // which often embed raw SQL constraint names, column names, or table detail in
+        // their message. Log the real detail server-side; the client gets a generic
+        // message with nothing to learn from regardless of what actually broke.
+        log.error("Unhandled RuntimeException", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An unexpected error occurred: " + message));
+                .body(ApiResponse.error("An unexpected error occurred. Please try again."));
     }
 
     // Catches BadCredentialsException specifically (wrong username/password)
