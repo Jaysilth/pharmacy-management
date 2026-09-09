@@ -109,11 +109,26 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
         }
     }
 
-    /** Prefers X-Forwarded-For (Render sits behind a proxy) with a fallback to the direct remote address. */
+    /**
+     * Prefers X-Forwarded-For (Render sits behind a proxy) with a fallback to the direct remote address.
+     *
+     * SECURITY FIX: this previously took the FIRST (leftmost) entry in the header,
+     * which is the client-supplied value — trivially spoofable, since Render's edge
+     * proxy APPENDS the real client IP rather than overwriting whatever the client
+     * sent (confirmed via Render's own feedback/docs). Reading the leftmost value
+     * let an attacker rotate a fake X-Forwarded-For per request and get a fresh
+     * rate-limit bucket every time, fully bypassing this filter.
+     *
+     * The trustworthy value is the LAST entry — the one Render's own edge added —
+     * since we're behind exactly one hop. If another reverse proxy is ever added
+     * in front of Render (e.g. Cloudflare in a custom setup), this needs revisiting:
+     * count hops and take the (N-from-right) entry, not just "last."
+     */
     private String clientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+            String[] parts = forwarded.split(",");
+            return parts[parts.length - 1].trim();
         }
         return request.getRemoteAddr();
     }
