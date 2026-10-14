@@ -35,15 +35,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (jwt != null
                 && jwtTokenProvider.validateToken(jwt)
-                // Security fix (OWASP A07) — signature+expiry alone isn't enough; a signature-valid
-                // token that was explicitly logged out must still be rejected.
                 && !tokenRevocationService.isRevoked(jwtTokenProvider.getJti(jwt))
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
-            String username = jwtTokenProvider.getUsernameFromToken(jwt);
-            var userDetails = userDetailsService.loadUserByUsername(username);
-            var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            try {
+                String username = jwtTokenProvider.getUsernameFromToken(jwt);
+                var userDetails = userDetailsService.loadUserByUsername(username);
+
+                // Re-check account state on every request, not only at login,
+                // so deactivating a user takes effect immediately.
+                if (userDetails.isEnabled()
+                        && userDetails.isAccountNonLocked()
+                        && userDetails.isAccountNonExpired()
+                        && userDetails.isCredentialsNonExpired()) {
+                    var authentication = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            } catch (org.springframework.security.core.userdetails.UsernameNotFoundException ex) {
+                // Deleted user with a still-valid token: stay unauthenticated (401), not a 500.
+            }
         }
 
         filterChain.doFilter(request, response);
