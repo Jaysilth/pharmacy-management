@@ -5,3 +5,5 @@
 *.backup
 *.local.json
 application-local.properties
+.sixth/
+security-review-report.md
