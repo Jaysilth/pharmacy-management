@@ -1,0 +1,7 @@
+.idea/
+.vscode/
+.claude/
+.env
+*.backup
+*.local.json
+application-local.properties
