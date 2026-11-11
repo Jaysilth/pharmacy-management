@@ -80,6 +80,14 @@ public class IolService {
 
     public IolResponseDTO update(Long id, IolRequestDTO dto) {
         Iol i = findOrThrow(id);
+
+        List<Iol> same = iolRepo.findByNameIgnoreCaseAndTypeAndPower(
+                dto.getName().trim(), dto.getType(), dto.getPower());
+        if (same.stream().anyMatch(d -> !d.getId().equals(id))) {
+            throw new IllegalStateException(
+                    "An IOL with this name, type and power already exists. Edit that row instead.");
+        }
+
         i.setName(dto.getName().trim());
         i.setType(dto.getType());
         i.setPower(dto.getPower());

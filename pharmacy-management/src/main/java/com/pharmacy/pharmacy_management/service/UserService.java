@@ -6,6 +6,7 @@ import com.pharmacy.pharmacy_management.entity.Role;
 import com.pharmacy.pharmacy_management.entity.User;
 import com.pharmacy.pharmacy_management.repository.RoleRepository;
 import com.pharmacy.pharmacy_management.repository.UserRepository;
+import com.pharmacy.pharmacy_management.dto.UserUpdateRequestDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -73,7 +74,7 @@ public class UserService {
 
     // ── Update ────────────────────────────────────────────────────────────────
 
-    public UserResponseDTO updateUser(Long id, UserRequestDTO request) {
+    public UserResponseDTO updateUser(Long id, UserUpdateRequestDTO request) {
         User user = findUserOrThrow(id);
 
         if (!user.getUsername().equals(request.getUsername())
@@ -88,10 +89,12 @@ public class UserService {
                     "Email '" + request.getEmail() + "' is already registered.");
         }
 
-        boolean willLoseSuperAdmin = user.getRoles().stream()
-                .anyMatch(r -> r.getName().equals(ROLE_SUPER_ADMIN))
-                && (request.getRoles() == null
-                || request.getRoles().stream().noneMatch(r -> r.equals(ROLE_SUPER_ADMIN)));
+        // Roles omitted/empty = "leave roles alone". The old code treated null as
+        // "removing SUPER_ADMIN", which could wrongly block a password-only edit.
+        boolean rolesProvided = request.getRoles() != null && !request.getRoles().isEmpty();
+        boolean willLoseSuperAdmin = rolesProvided
+                && user.getRoles().stream().anyMatch(r -> r.getName().equals(ROLE_SUPER_ADMIN))
+                && !request.getRoles().contains(ROLE_SUPER_ADMIN);
 
         if (willLoseSuperAdmin && isLastSuperAdmin(user)) {
             throw new IllegalStateException(
@@ -105,7 +108,7 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+        if (rolesProvided) {
             user.setRoles(resolveRoles(request.getRoles()));
         }
 

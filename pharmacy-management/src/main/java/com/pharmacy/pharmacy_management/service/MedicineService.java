@@ -213,7 +213,14 @@ public class MedicineService {
 
     /** Update a specific batch's price, expiry, and quantity. */
     private MedicineResponseDTO updateBatch(Long targetId, MedicineRequestDTO dto) {
+        if (targetId == null) {
+            throw new IllegalArgumentException("targetBatchId is required to update a batch.");
+        }
         Medicine m = findOrThrow(targetId);
+        // Without this, a crafted targetBatchId could overwrite a different drug's price/stock.
+        if (!m.getName().trim().equalsIgnoreCase(dto.getName().trim())) {
+            throw new IllegalArgumentException("The selected batch does not belong to this medicine.");
+        }
         m.setPrice(dto.getPrice());
         m.setExpiryDate(dto.getExpiryDate());
         m.setQuantity(dto.getQuantity());

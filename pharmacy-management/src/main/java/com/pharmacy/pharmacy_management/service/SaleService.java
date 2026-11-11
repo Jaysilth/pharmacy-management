@@ -57,25 +57,42 @@ public class SaleService {
             grandTotal = grandTotal.add(saleItem.getSubtotal());
         }
 
-        if (request.getDiscountType() != null && request.getDiscountAmount() != null) {
+        // The server computes the discount from type + value. The client-sent
+        // discountAmount is ignored, so it can no longer be forged.
+        BigDecimal discountAmount = computeDiscount(
+                request.getDiscountType(), request.getDiscountValue(), grandTotal);
+        if (discountAmount.signum() > 0) {
             sale.setDiscountType(request.getDiscountType());
             sale.setDiscountValue(request.getDiscountValue());
-            sale.setDiscountAmount(request.getDiscountAmount());
-
-            BigDecimal finalTotal = grandTotal.subtract(request.getDiscountAmount());
-            if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
-                finalTotal = BigDecimal.ZERO;
-            }
-            sale.setGrandTotal(finalTotal);
-            sale.setTotalPrice(finalTotal);
-        } else {
-            sale.setGrandTotal(grandTotal);
-            sale.setTotalPrice(grandTotal);
+            sale.setDiscountAmount(discountAmount);
         }
+
+        BigDecimal finalTotal = grandTotal.subtract(discountAmount);
+        sale.setGrandTotal(finalTotal);
+        sale.setTotalPrice(finalTotal);
 
         applyBackdatingIfRequested(sale, request.getSaleDate(), request.getBackdateReason());
 
         return mapToResponseDTO(saleRepository.save(sale));
+    }
+
+    /** Mirrors the frontend: percent is rounded to whole naira, fixed is capped at the subtotal. */
+    private BigDecimal computeDiscount(String type, BigDecimal value, BigDecimal subtotal) {
+        if (type == null || value == null) return BigDecimal.ZERO;
+        if (value.signum() < 0) {
+            throw new IllegalArgumentException("Discount cannot be negative.");
+        }
+        BigDecimal hundred = BigDecimal.valueOf(100);
+        return switch (type) {
+            case "PERCENT" -> {
+                if (value.compareTo(hundred) > 0) {
+                    throw new IllegalArgumentException("Percent discount cannot exceed 100.");
+                }
+                yield subtotal.multiply(value).divide(hundred, 0, java.math.RoundingMode.HALF_UP);
+            }
+            case "FIXED" -> value.min(subtotal);
+            default -> throw new IllegalArgumentException("Unknown discount type: " + type);
+        };
     }
 
     /**
@@ -192,10 +209,13 @@ public class SaleService {
             case "CLINIC_VISIT":
             case "PROCEDURE":
             case "LAB_TEST": {
-                if (input.getItemName() == null || input.getUnitPrice() == null)
+                if (input.getItemName() == null || input.getItemName().isBlank()
+                        || input.getUnitPrice() == null)
                     throw new IllegalArgumentException(
                             input.getItemType() + " requires itemName and unitPrice fields.");
-                itemName  = input.getItemName();
+                if (input.getUnitPrice().signum() < 0)
+                    throw new IllegalArgumentException("unitPrice must not be negative.");
+                itemName  = input.getItemName().trim();
                 unitPrice = input.getUnitPrice();
                 break;
             }

@@ -20,12 +20,11 @@ public class UserRequestDTO {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be a valid email address")
+    @Size(max = 255, message = "Email must be at most 255 characters")
     private String email;
 
-    // SECURITY FIX: was min-length-only (8 chars), which permits weak
-    // passwords like "aaaaaaaa". Now requires upper, lower, digit, and symbol.
     @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters")
     @Pattern(
             regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^a-zA-Z0-9]).+$",
             message = "Password must include at least one uppercase letter, one lowercase letter, one digit, and one symbol"
@@ -34,7 +33,6 @@ public class UserRequestDTO {
 
     /**
      * Role names to assign. Must match values stored in the roles table.
-     * Example: ["ROLE_ADMIN"] or ["ROLE_SUPER_ADMIN", "ROLE_ADMIN"]
      * If null or empty, defaults to ROLE_ADMIN only.
      */
     private Set<String> roles;

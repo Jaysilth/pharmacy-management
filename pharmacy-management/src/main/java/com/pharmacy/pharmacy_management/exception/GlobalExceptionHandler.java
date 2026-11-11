@@ -5,7 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -38,46 +40,47 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // Bad input (e.g. an invalid "period"/"weeks" query param) should be a
-    // 400, not fall through to the generic RuntimeException handler as a
-    // 500 — the message here is one we wrote ourselves (safe to show), not
-    // internal exception detail.
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    // Malformed JSON, wrong types, unknown enum values (e.g. an invalid IOL type).
+    // Generic message on purpose — the parser's own message can echo internals.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Malformed or invalid request body."));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
-        // Route "not found" messages to 404 instead of 500. These are our own
-        // exceptions with messages we wrote ourselves — safe to show as-is.
         String message = ex.getMessage();
         if (message != null && message.toLowerCase().contains("not found")) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(message));
         }
 
-        // SECURITY FIX: this used to return "An unexpected error occurred: " + message
-        // directly to the client. That's fine for exceptions we threw ourselves, but this
-        // handler also catches anything else that bubbles up as a RuntimeException —
-        // Hibernate/JPA exceptions like DataIntegrityViolationException in particular,
-        // which often embed raw SQL constraint names, column names, or table detail in
-        // their message. Log the real detail server-side; the client gets a generic
-        // message with nothing to learn from regardless of what actually broke.
         log.error("Unhandled RuntimeException", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("An unexpected error occurred. Please try again."));
     }
 
-    // Catches BadCredentialsException specifically (wrong username/password)
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("Invalid username or password."));
     }
 
-    // Catches all other Spring Security authentication failures
+    // AuthController throws this with the seconds remaining; previously it fell into the
+    // generic handler below and the user only saw "Authentication failed."
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLocked(LockedException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -95,7 +98,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
+            String fieldName = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
             errors.put(fieldName, error.getDefaultMessage());
         });
         ApiResponse<Map<String, String>> response = ApiResponse.<Map<String, String>>builder()
@@ -105,6 +108,4 @@ public class GlobalExceptionHandler {
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
-
-
 }

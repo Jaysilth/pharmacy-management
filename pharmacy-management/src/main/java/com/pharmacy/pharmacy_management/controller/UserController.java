@@ -3,6 +3,7 @@ package com.pharmacy.pharmacy_management.controller;
 import com.pharmacy.pharmacy_management.dto.ApiResponse;
 import com.pharmacy.pharmacy_management.dto.UserRequestDTO;
 import com.pharmacy.pharmacy_management.dto.UserResponseDTO;
+import com.pharmacy.pharmacy_management.dto.UserUpdateRequestDTO;
 import com.pharmacy.pharmacy_management.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -49,10 +50,10 @@ public class UserController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Update a user")
+    @Operation(summary = "Update a user (password optional)")
     public ResponseEntity<ApiResponse<UserResponseDTO>> updateUser(
             @PathVariable Long id,
-            @Valid @RequestBody UserRequestDTO request) {
+            @Valid @RequestBody UserUpdateRequestDTO request) {
         return ResponseEntity.ok(
                 ApiResponse.success("User updated successfully.", userService.updateUser(id, request)));
     }

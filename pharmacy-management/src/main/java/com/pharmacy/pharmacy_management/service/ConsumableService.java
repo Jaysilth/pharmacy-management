@@ -155,13 +155,20 @@ public class ConsumableService {
     // ── Validation ────────────────────────────────────────────────────────────
 
     private void validateLinkedEntity(ConsumableUsageRequestDTO dto) {
-        int linked = 0;
-        if (dto.getSurgeryId() != null)   linked++;
-        if (dto.getProcedureRef() != null && !dto.getProcedureRef().isBlank()) linked++;
-        if (dto.getLabTestRef() != null   && !dto.getLabTestRef().isBlank())   linked++;
-        if (linked > 1) {
+        boolean hasSurgery = dto.getSurgeryId() != null;
+        boolean hasProcedure = dto.getProcedureRef() != null && !dto.getProcedureRef().isBlank();
+        boolean hasLabTest = dto.getLabTestRef() != null && !dto.getLabTestRef().isBlank();
+
+        int linked = (hasSurgery ? 1 : 0) + (hasProcedure ? 1 : 0) + (hasLabTest ? 1 : 0);
+        if (linked != 1) {
             throw new IllegalArgumentException(
-                    "Only one of surgeryId, procedureRef, or labTestRef may be set per usage record.");
+                    "Exactly one of surgeryId, procedureRef, or labTestRef must be set.");
+        }
+
+        String expected = hasSurgery ? "SURGERY" : hasProcedure ? "PROCEDURE" : "LAB_TEST";
+        if (!expected.equals(dto.getLinkedEntityType())) {
+            throw new IllegalArgumentException("linkedEntityType must be " + expected
+                    + " for the target provided.");
         }
     }
 
